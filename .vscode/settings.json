@@ -1,0 +1,16 @@
+{
+    "cmake.buildDirectory": "${workspaceFolder}/build",
+    "cmake.configureArgs": [
+        "-DSDL2_DIR=/usr/local/opt/sdl2/lib/cmake/SDL2 -G'Ninja'"
+    ],
+    "cmake.buildBeforeRun": true,
+    "cmake.defaultVariants": {
+        "buildType": {
+            "default": "debug",
+            "choices": {
+                "debug":   { "short": "Debug",   "buildType": "Debug"   },
+                "release": { "short": "Release", "buildType": "Release" }
+            }
+        }
+    }
+}

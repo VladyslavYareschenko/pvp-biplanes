@@ -1,0 +1,14 @@
+build/
+build_ios/
+build_ios_arm64_device/
+build_ios_arm64_sim/
+build_ios_x86_64_sim/
+*.o
+*.a
+*.d
+
+# Local tooling — not committed
+tools/
+
+# Generated sprite assets
+assets/sprites/

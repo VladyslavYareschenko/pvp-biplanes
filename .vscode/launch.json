@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Server",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/server/biplanes_server",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "cmake-build"
+        },
+        {
+            "name": "Client",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/client/biplanes_client",
+            "args": ["127.0.0.1", "55123"],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "cmake-build"
+        }
+    ]
+}
