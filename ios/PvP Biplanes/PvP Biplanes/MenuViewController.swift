@@ -1,10 +1,6 @@
 import UIKit
 
-/// Mode-selection screen shown at launch.
-/// Presents two options: Play vs Bot (offline) and Play Online.
 final class MenuViewController: UIViewController {
-
-    // ── UI ─────────────────────────────────────────────────────────────────
 
     private let titleLabel   = UILabel()
     private let botButton    = UIButton(type: .system)
@@ -12,8 +8,6 @@ final class MenuViewController: UIViewController {
     private let hostField    = UITextField()
     private let portField    = UITextField()
     private let stack        = UIStackView()
-
-    // ── Lifecycle ──────────────────────────────────────────────────────────
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -24,51 +18,42 @@ final class MenuViewController: UIViewController {
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }
     override var prefersStatusBarHidden: Bool { true }
 
-    // ── Layout ─────────────────────────────────────────────────────────────
-
     private func buildUI() {
-        // Title
         titleLabel.text          = "PvP Biplanes"
         titleLabel.font          = .boldSystemFont(ofSize: 36)
         titleLabel.textColor     = .white
         titleLabel.textAlignment = .center
 
-        // Host field
         hostField.placeholder    = "Server IP (e.g. 192.168.1.5)"
         hostField.text           = "127.0.0.1"
         hostField.borderStyle    = .roundedRect
         hostField.keyboardType   = .decimalPad
         hostField.backgroundColor = UIColor.white.withAlphaComponent(0.9)
 
-        // Port field
         portField.placeholder    = "Port"
         portField.text           = "55123"
         portField.borderStyle    = .roundedRect
         portField.keyboardType   = .numberPad
         portField.backgroundColor = UIColor.white.withAlphaComponent(0.9)
 
-        // Buttons
         configure(button: botButton,    title: "▶  Play vs Bot",    color: .systemGreen)
         configure(button: onlineButton, title: "🌐  Play Online",   color: .systemBlue)
 
         botButton.addTarget(self, action: #selector(didTapBot),    for: .touchUpInside)
         onlineButton.addTarget(self, action: #selector(didTapOnline), for: .touchUpInside)
 
-        // Host / port row
         let networkRow = UIStackView(arrangedSubviews: [hostField, portField])
         networkRow.axis      = .horizontal
         networkRow.spacing   = 8
         networkRow.distribution = .fill
         portField.widthAnchor.constraint(equalToConstant: 80).isActive = true
 
-        // Main stack
         stack.axis         = .vertical
         stack.spacing      = 16
         stack.alignment    = .center
         stack.translatesAutoresizingMaskIntoConstraints = false
         [titleLabel, botButton, networkRow, onlineButton].forEach { stack.addArrangedSubview($0) }
 
-        // Width constraints for the fields/buttons row
         for sv in [networkRow, botButton, onlineButton] {
             sv.widthAnchor.constraint(equalToConstant: 300).isActive = true
         }
@@ -86,10 +71,7 @@ final class MenuViewController: UIViewController {
         button.backgroundColor  = color
         button.setTitleColor(.white, for: .normal)
         button.layer.cornerRadius = 10
-        button.contentEdgeInsets = UIEdgeInsets(top: 12, left: 20, bottom: 12, right: 20)
     }
-
-    // ── Actions ────────────────────────────────────────────────────────────
 
     @objc private func didTapBot() {
         let bridge = BiplanesBridge()
@@ -103,7 +85,6 @@ final class MenuViewController: UIViewController {
 
         let bridge = BiplanesBridge()
 
-        // Show connecting indicator
         onlineButton.isEnabled = false
         onlineButton.setTitle("Connecting…", for: .normal)
 
