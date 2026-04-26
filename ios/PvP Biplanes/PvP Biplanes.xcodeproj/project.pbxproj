@@ -22,14 +22,14 @@
 
 /* Begin PBXFileReference section */
 		CC6ECCF32F9D78DF008F2866 /* PvP Biplanes.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "PvP Biplanes.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		DEAD0002DEAD0002DEAD0002 /* biplanes_core.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = biplanes_core.xcframework; path = "../../build_ios/biplanes_core.xcframework"; sourceTree = "<group>"; };
+		DEAD0002DEAD0002DEAD0002 /* biplanes_core.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = biplanes_core.xcframework; path = ../../build_ios/biplanes_core.xcframework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		DEAD0001DEAD0001DEAD0001 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		DEAD0001DEAD0001DEAD0001 /* Exceptions for "PvP Biplanes" folder in "PvP Biplanes" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"Info.plist",
+				Info.plist,
 			);
 			target = CC6ECCF22F9D78DF008F2866 /* PvP Biplanes */;
 		};
@@ -39,7 +39,7 @@
 		CC6ECCF52F9D78DF008F2866 /* PvP Biplanes */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				DEAD0001DEAD0001DEAD0001 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+				DEAD0001DEAD0001DEAD0001 /* Exceptions for "PvP Biplanes" folder in "PvP Biplanes" target */,
 			);
 			path = "PvP Biplanes";
 			sourceTree = "<group>";
@@ -67,20 +67,20 @@
 			);
 			sourceTree = "<group>";
 		};
-		DEAD0004DEAD0004DEAD0004 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				DEAD0002DEAD0002DEAD0002 /* biplanes_core.xcframework */,
-			);
-			name = Frameworks;
-			sourceTree = "<group>";
-		};
 		CC6ECCF42F9D78DF008F2866 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				CC6ECCF32F9D78DF008F2866 /* PvP Biplanes.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		DEAD0004DEAD0004DEAD0004 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				DEAD0002DEAD0002DEAD0002 /* biplanes_core.xcframework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -211,6 +211,7 @@
 					"$(SRCROOT)/../../build_ios/_deps/nlohmann_json-src/include",
 				);
 				INFOPLIST_FILE = "$(SRCROOT)/PvP Biplanes/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "PvP Biplanes";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -246,6 +247,7 @@
 					"$(SRCROOT)/../../build_ios/_deps/nlohmann_json-src/include",
 				);
 				INFOPLIST_FILE = "$(SRCROOT)/PvP Biplanes/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "PvP Biplanes";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

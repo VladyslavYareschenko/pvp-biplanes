@@ -20,7 +20,7 @@ final class GameViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        view.backgroundColor = .black
+        view.backgroundColor = .blue
 
         skView = SKView()
         skView.translatesAutoresizingMaskIntoConstraints = false
@@ -39,7 +39,6 @@ final class GameViewController: UIViewController {
         scene.scaleMode = .resizeFill
         skView.presentScene(scene)
 
-        // Touch controls overlay (placed above SKView, covers the full view)
         let controls = TouchControlsView(bridge: bridge)
         controls.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(controls)
@@ -50,9 +49,8 @@ final class GameViewController: UIViewController {
             controls.trailingAnchor.constraint(equalTo: view.trailingAnchor),
         ])
 
-        // Back button
         let backBtn = UIButton(type: .system)
-        backBtn.setTitle("✕", for: .normal)
+        backBtn.setTitle("x", for: .normal)
         backBtn.titleLabel?.font = .boldSystemFont(ofSize: 22)
         backBtn.setTitleColor(.white, for: .normal)
         backBtn.translatesAutoresizingMaskIntoConstraints = false

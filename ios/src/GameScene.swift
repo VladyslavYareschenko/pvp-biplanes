@@ -1,20 +1,22 @@
 import SpriteKit
 
 /// SpriteKit scene that renders the game state from BiplanesBridge each frame.
-/// Uses simple geometric shapes — no sprite textures yet.
 final class GameScene: SKScene {
 
     // ── Constants ──────────────────────────────────────────────────────────
-
-    // Barn constants mirroring core/include/constants.hpp
     private let barnSizeX: CGFloat    = 0.08
     private let barnCollisionY: CGFloat = 0.87
 
+    // ── Plane sprite names & rotation base angles ───────────────────────────
+    // green_biplane faces RIGHT  → needs no offset to align with dir=90 (right)
+    // red_biplane   faces LEFT   → needs +π offset so dir=270 (left) = no rotation
+    private let planeImageNames: [String] = ["green_biplane", "red_biplane"]
+    private let planeBaseAngles: [CGFloat] = [0, .pi]
+
     // ── Nodes ──────────────────────────────────────────────────────────────
 
-    // Planes
-    private var planeNodes  = [SKShapeNode(), SKShapeNode()]
-    private var dirNodes    = [SKShapeNode(), SKShapeNode()]   // direction arrows
+    // Planes — SKSpriteNode for textured rendering
+    private var planeNodes  = [SKSpriteNode(), SKSpriteNode()]
 
     // Pilots
     private var pilotNodes  = [SKShapeNode(), SKShapeNode()]
@@ -37,10 +39,10 @@ final class GameScene: SKScene {
 
     private let bridge: BiplanesBridge
 
-    // Plane colours: blue, red
+    // Plane colours for HUD (score / HP bar labels)
     private let planeColors: [SKColor] = [
-        SKColor(red: 0.31, green: 0.47, blue: 0.86, alpha: 1),
-        SKColor(red: 0.86, green: 0.31, blue: 0.31, alpha: 1),
+        SKColor(red: 0.31, green: 0.70, blue: 0.31, alpha: 1),  // green
+        SKColor(red: 0.86, green: 0.31, blue: 0.31, alpha: 1),  // red
     ]
 
     // ── Init ───────────────────────────────────────────────────────────────
@@ -48,7 +50,7 @@ final class GameScene: SKScene {
     init(bridge: BiplanesBridge, size: CGSize) {
         self.bridge = bridge
         super.init(size: size)
-        backgroundColor = SKColor(red: 0.12, green: 0.12, blue: 0.20, alpha: 1)
+        backgroundColor = SKColor(red: 0.55, green: 0.78, blue: 0.94, alpha: 1) // sky blue
         scaleMode = .resizeFill
     }
 
@@ -84,25 +86,21 @@ final class GameScene: SKScene {
 
     private func buildDynamicNodes() {
         for i in 0..<2 {
-            // Plane body
-            let plane = SKShapeNode(rectOf: CGSize(width: 28, height: 12), cornerRadius: 3)
-            plane.fillColor   = planeColors[i]
-            plane.strokeColor = .clear
-            plane.zPosition   = 10
-            addChild(plane)
-            planeNodes[i] = plane
-
-            // Direction indicator
-            let dir = SKShapeNode()
-            let path = CGMutablePath()
-            path.move(to: .zero)
-            path.addLine(to: CGPoint(x: 0, y: 16))
-            dir.path        = path
-            dir.strokeColor = .yellow
-            dir.lineWidth   = 2
-            dir.zPosition   = 11
-            addChild(dir)
-            dirNodes[i] = dir
+            // Load texture explicitly so we can read its size reliably before
+            // setting the node size (SKSpriteNode(imageNamed:) can report 0×0
+            // on the first frame when the texture is not yet in the catalog).
+            let texture = SKTexture(imageNamed: planeImageNames[i])
+            let texSize = texture.size()
+            let fixedHeight: CGFloat = 12
+            let aspect: CGFloat = texSize.height > 0 ? texSize.width / texSize.height : 1.0
+            let sprite = SKSpriteNode(texture: texture)
+            sprite.size      = CGSize(width: fixedHeight * aspect, height: fixedHeight)
+            // Tint fallback: if texture missing the sprite shows as a solid color
+            sprite.color          = planeColors[i]
+            sprite.colorBlendFactor = texSize.width > 0 ? 0.0 : 1.0
+            sprite.zPosition = 10
+            addChild(sprite)
+            planeNodes[i] = sprite
 
             // Pilot
             let pilot = SKShapeNode(rectOf: CGSize(width: 8, height: 8), cornerRadius: 2)
@@ -182,8 +180,8 @@ final class GameScene: SKScene {
     // ── Update ─────────────────────────────────────────────────────────────
 
     override func update(_ currentTime: TimeInterval) {
-        let state = bridge.currentState()
-        guard let planes  = state.planes  as? [PlaneState],
+        guard let state = bridge.currentState(),
+              let planes  = state.planes  as? [PlaneState],
               let bullets = state.bullets as? [BulletState],
               planes.count == 2
         else { return }
@@ -201,18 +199,24 @@ final class GameScene: SKScene {
 
             if p.isDead && !p.hasJumped {
                 planeNodes[i].isHidden = true
-                dirNodes[i].isHidden   = true
             } else if !p.isDead {
                 planeNodes[i].isHidden = false
-                dirNodes[i].isHidden   = false
 
                 let pos = worldToScreen(x: CGFloat(p.x), y: CGFloat(p.y))
                 planeNodes[i].position = pos
-                dirNodes[i].position   = pos
 
+                // Convert game direction (0=up, clockwise) to SpriteKit angle.
+                // A sprite naturally facing right needs zRotation = π/2 - rad so that:
+                //   dir=90  (right) → zRot = 0  (facing right) ✓
+                //   dir=0   (up)    → zRot = π/2 (facing up)   ✓
+                // planeBaseAngles[i] offsets red (left-facing) sprite by +π.
                 let rad = CGFloat(p.dir) * .pi / 180.0
-                planeNodes[i].zRotation = -rad
-                dirNodes[i].zRotation   = rad    // arrow points in flight dir
+                planeNodes[i].zRotation = .pi / 2.0 - rad + planeBaseAngles[i]
+
+                // Dim sprite when under spawn protection
+                planeNodes[i].alpha = p.protectionRemaining > 0
+                    ? CGFloat(0.5 + 0.5 * sin(Double(p.protectionRemaining) * 10))
+                    : 1.0
             }
 
             // Pilot
@@ -241,7 +245,6 @@ final class GameScene: SKScene {
     // ── Bullets ────────────────────────────────────────────────────────────
 
     private func updateBullets(_ bullets: [BulletState]) {
-        // Grow pool if needed
         while bulletPool.count < bullets.count {
             let node = SKShapeNode(circleOfRadius: 3)
             node.fillColor   = SKColor(red: 1.0, green: 1.0, blue: 0.24, alpha: 1)
@@ -255,7 +258,6 @@ final class GameScene: SKScene {
             bulletPool[idx].isHidden = false
             bulletPool[idx].position = worldToScreen(x: CGFloat(b.x), y: CGFloat(b.y))
         }
-        // Hide unused pool nodes
         for idx in bullets.count..<bulletPool.count {
             bulletPool[idx].isHidden = true
         }
@@ -268,7 +270,6 @@ final class GameScene: SKScene {
             let p = planes[i]
             scoreLabels[i].text = "Score: \(p.score)"
 
-            // HP bar: max hp = 3
             let fraction = CGFloat(max(0, p.hp)) / 3.0
             let fullWidth: CGFloat = 60
             let filled = fullWidth * fraction
@@ -281,11 +282,10 @@ final class GameScene: SKScene {
             hpBarFg[i].fillColor = bar.fillColor
         }
 
-        // Win overlay
         if state.roundFinished {
             winLabel.isHidden = false
             if state.winnerId == 0 {
-                winLabel.text      = "🔵 Blue Wins!"
+                winLabel.text      = "🟢 Green Wins!"
                 winLabel.fontColor = planeColors[0]
             } else if state.winnerId == 1 {
                 winLabel.text      = "🔴 Red Wins!"
