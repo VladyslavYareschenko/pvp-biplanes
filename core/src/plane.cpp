@@ -38,19 +38,20 @@ Plane& Plane::operator=(const Plane& o)
     mSpeed       = o.mSpeed;
     mMaxSpeedVar = o.mMaxSpeedVar;
     mSpeedVec    = o.mSpeedVec;
-    mIsDead      = o.mIsDead;
-    mHasJumped   = o.mHasJumped;
-    mIsOnGround  = o.mIsOnGround;
-    mIsTakingOff = o.mIsTakingOff;
-    mSmokeFrame  = o.mSmokeFrame;
-    mFireFrame   = o.mFireFrame;
-    mShootCooldown  = o.mShootCooldown;
-    mPitchCooldown  = o.mPitchCooldown;
-    mDeadCooldown   = o.mDeadCooldown;
-    mProtection     = o.mProtection;
-    mSmokeAnim      = o.mSmokeAnim;
-    mSmokeCooldown  = o.mSmokeCooldown;
-    mFireAnim       = o.mFireAnim;
+    mIsDead          = o.mIsDead;
+    mHasJumped       = o.mHasJumped;
+    mIsOnGround      = o.mIsOnGround;
+    mIsTakingOff     = o.mIsTakingOff;
+    mSmokeFrame      = o.mSmokeFrame;
+    mFireFrame       = o.mFireFrame;
+    mAngularVelocity = o.mAngularVelocity;
+    mShootCooldown   = o.mShootCooldown;
+    mPitchCooldown   = o.mPitchCooldown;
+    mDeadCooldown    = o.mDeadCooldown;
+    mProtection      = o.mProtection;
+    mSmokeAnim       = o.mSmokeAnim;
+    mSmokeCooldown   = o.mSmokeCooldown;
+    mFireAnim        = o.mFireAnim;
     pilot        = o.pilot;
     pilot.setPlane(this);  // fix the pointer
     return *this;
@@ -68,19 +69,20 @@ Plane& Plane::operator=(Plane&& o) noexcept
     mSpeed       = o.mSpeed;
     mMaxSpeedVar = o.mMaxSpeedVar;
     mSpeedVec    = o.mSpeedVec;
-    mIsDead      = o.mIsDead;
-    mHasJumped   = o.mHasJumped;
-    mIsOnGround  = o.mIsOnGround;
-    mIsTakingOff = o.mIsTakingOff;
-    mSmokeFrame  = o.mSmokeFrame;
-    mFireFrame   = o.mFireFrame;
-    mShootCooldown  = std::move(o.mShootCooldown);
-    mPitchCooldown  = std::move(o.mPitchCooldown);
-    mDeadCooldown   = std::move(o.mDeadCooldown);
-    mProtection     = std::move(o.mProtection);
-    mSmokeAnim      = std::move(o.mSmokeAnim);
-    mSmokeCooldown  = std::move(o.mSmokeCooldown);
-    mFireAnim       = std::move(o.mFireAnim);
+    mIsDead          = o.mIsDead;
+    mHasJumped       = o.mHasJumped;
+    mIsOnGround      = o.mIsOnGround;
+    mIsTakingOff     = o.mIsTakingOff;
+    mSmokeFrame      = o.mSmokeFrame;
+    mFireFrame       = o.mFireFrame;
+    mAngularVelocity = o.mAngularVelocity;
+    mShootCooldown   = std::move(o.mShootCooldown);
+    mPitchCooldown   = std::move(o.mPitchCooldown);
+    mDeadCooldown    = std::move(o.mDeadCooldown);
+    mProtection      = std::move(o.mProtection);
+    mSmokeAnim       = std::move(o.mSmokeAnim);
+    mSmokeCooldown   = std::move(o.mSmokeCooldown);
+    mFireAnim        = std::move(o.mFireAnim);
     pilot        = std::move(o.pilot);
     pilot.setPlane(this);  // fix the pointer
     return *this;
@@ -140,6 +142,63 @@ void Plane::Turn(PlanePitch dir, float dt)
     const float d = (dir == PlanePitch::Left) ? -1.0f : 1.0f;
     mDir += d * constants::plane::pitchStep;
     mDir  = clamp_angle(mDir, 360.f);
+}
+
+void Plane::ApplyAnalogJoystick(float targetDir, float magnitude, float dt)
+{
+    namespace p = constants::plane;
+    namespace j = constants::joystick;
+
+    // Only drive airborne, non-dead, non-bailed planes.
+    if (mIsDead || mHasJumped || mIsOnGround) return;
+
+    // ---- Throttle -----------------------------------------------------------
+    if (magnitude > j::accelThreshold) {
+        // High deflection → accelerate toward mMaxSpeedVar (climb/dive aware).
+        if (mDir != 0.0f) {
+            float factor = 0.75f;
+            if (mDir == 22.5f || mDir == 337.5f)        factor = 0.25f;
+            else if (mDir == 45.0f || mDir == 315.0f)   factor = 0.5f;
+            mSpeed += factor * p::acceleration * dt;
+            mSpeed  = std::min(mSpeed, mMaxSpeedVar);
+        }
+    } else if (magnitude < j::decelThreshold) {
+        // Low deflection → bleed speed down toward minSpeed (plane never fully stops).
+        mSpeed -= p::deceleration * dt;
+        mSpeed  = std::max(mSpeed, j::minSpeed);
+        mMaxSpeedVar = std::max(mSpeed, p::maxSpeedBase);
+    }
+    // else (between thresholds): hold current speed — idle zone.
+
+    // ---- Steering -----------------------------------------------------------
+    if (magnitude < j::deadZone) {
+        // Dead zone: decay angular velocity but don't steer.
+        mAngularVelocity *= std::max(0.0f, 1.0f - j::angularDecay * dt);
+        mDir += mAngularVelocity * dt;
+        mDir  = clamp_angle(mDir, 360.0f);
+        return;
+    }
+
+    // Angle difference in the shortest direction [-180, +180].
+    float diff = targetDir - mDir;
+    if (diff >  180.0f) diff -= 360.0f;
+    if (diff < -180.0f) diff += 360.0f;
+
+    // Higher speed → wider turning radius → slower max turn rate.
+    const float speedNorm    = std::min(mSpeed / p::maxSpeedBoosted, 1.0f);
+    const float effectiveRate = j::maxTurnRate * (1.0f - j::speedTurnFactor * speedNorm);
+
+    // Partial deflection reduces steering authority linearly.
+    const float turnAuthority = std::min(1.0f, magnitude / 0.5f);
+    const float scaledRate    = effectiveRate * turnAuthority;
+
+    const float targetAngVel = std::clamp(diff / 0.25f, -scaledRate, scaledRate);
+
+    // Smooth toward target angular velocity (inertia).
+    mAngularVelocity += (targetAngVel - mAngularVelocity) * j::angularSmoothing * dt;
+
+    mDir += mAngularVelocity * dt;
+    mDir  = clamp_angle(mDir, 360.0f);
 }
 
 bool Plane::Shoot(float dt)
@@ -380,9 +439,10 @@ void Plane::TakeOffFinish()
 
 void Plane::Explode()
 {
-    mSpeed = 0.0f;
-    mDir   = 0.0f;
-    mHp    = 0;
+    mSpeed           = 0.0f;
+    mDir             = 0.0f;
+    mHp              = 0;
+    mAngularVelocity = 0.0f;
 
     mIsDead      = true;
     mIsOnGround  = false;
@@ -459,7 +519,8 @@ void Plane::Respawn(const Plane& opponent)
     mSpeed       = 0.0f;
     mMaxSpeedVar = p::maxSpeedBase;
     mSpeedVec    = {};
-    mHasJumped   = false;
+    mHasJumped       = false;
+    mAngularVelocity = 0.0f;
 
     mDeadCooldown.Stop();
     mPitchCooldown.Stop();

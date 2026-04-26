@@ -121,10 +121,14 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
     BotAI       _bot;
 
     // Serialised human input (written on main thread, read on game thread)
-    std::atomic<int>  _throttle;  // 0=idle 1=inc 2=dec
-    std::atomic<int>  _pitch;     // 0=idle 1=left 2=right
-    std::atomic<bool> _shoot;
-    std::atomic<bool> _jump;
+    std::atomic<int>   _throttle;  // 0=idle 1=inc 2=dec
+    std::atomic<int>   _pitch;     // 0=idle 1=left 2=right
+    std::atomic<bool>  _shoot;
+    std::atomic<bool>  _jump;
+    // Analog joystick state (written on main thread, read on game thread)
+    std::atomic<float> _jsAngle;
+    std::atomic<float> _jsMag;
+    std::atomic<bool>  _jsActive;
 
     // Latest snapshot (protected by _stateMutex)
     std::mutex          _stateMutex;
@@ -158,6 +162,9 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
         _pitch       = 0;
         _shoot       = false;
         _jump        = false;
+        _jsAngle     = 0.0f;
+        _jsMag       = 0.0f;
+        _jsActive    = false;
         _playerId    = 0;
         _isConnected = NO;
         _isOffline   = NO;
@@ -176,6 +183,12 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
 - (void)setPitch:(int)pitch       { _pitch    = pitch; }
 - (void)setShoot:(BOOL)shoot      { _shoot    = (bool)shoot; }
 - (void)setJump:(BOOL)jump        { _jump     = (bool)jump; }
+- (void)setJoystick:(float)angle magnitude:(float)magnitude active:(BOOL)active
+{
+    _jsAngle  = angle;
+    _jsMag    = magnitude;
+    _jsActive = (bool)active;
+}
 
 // ── State ─────────────────────────────────────────────────────────────────
 
@@ -219,10 +232,13 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
         PlayerInput inputs[2];
 
         // Human input (player 0 = Blue)
-        inputs[0].throttle = static_cast<PlaneThrottle>(_throttle.load());
-        inputs[0].pitch    = static_cast<PlanePitch>   (_pitch.load());
-        inputs[0].shoot    = _shoot.load();
-        inputs[0].jump     = _jump.load();
+        inputs[0].throttle        = static_cast<PlaneThrottle>(_throttle.load());
+        inputs[0].pitch           = static_cast<PlanePitch>   (_pitch.load());
+        inputs[0].shoot           = _shoot.load();
+        inputs[0].jump            = _jump.load();
+        inputs[0].joystick.angle  = _jsAngle.load();
+        inputs[0].joystick.magnitude = _jsMag.load();
+        inputs[0].joystick.active = _jsActive.load();
 
         // Bot input (player 1 = Red)
         inputs[1] = _bot.think(
@@ -330,6 +346,9 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
             msg.pitch    = static_cast<PlanePitch>   (_pitch.load());
             msg.shoot    = _shoot.load();
             msg.jump     = _jump.load();
+            msg.jsActive = _jsActive.load();
+            msg.jsAngle  = _jsAngle.load();
+            msg.jsMag    = _jsMag.load();
 
             if (!sendAll(_serverFd, frameMessage(msg.toJson()))) {
                 _networkRunning = false;

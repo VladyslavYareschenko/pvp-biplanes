@@ -60,6 +60,27 @@ namespace constants
         static constexpr float jumpDirOffsetRed  { 90.f};
     }
 
+    namespace joystick
+    {
+        // Maximum rotation rate (degrees per second) at low speed.
+        static constexpr float maxTurnRate      = 250.0f;
+        // Angular-velocity smoothing factor (higher = snappier response, less inertia).
+        static constexpr float angularSmoothing = 10.0f;
+        // Angular-velocity decay factor when in dead zone (higher = faster stop).
+        static constexpr float angularDecay     = 12.0f;
+        // Minimum airspeed maintained while joystick is active (prevents full stall).
+        static constexpr float minSpeed         = 0.10f;
+        // How much high speed reduces turn rate:
+        //   effectiveRate = maxTurnRate * (1 - speedTurnFactor * speed/maxSpeedBoosted)
+        static constexpr float speedTurnFactor  = 0.4f;
+        // Magnitude dead-zone threshold (below this, steer is suppressed).
+        static constexpr float deadZone         = 0.10f;
+        // Magnitude above which full acceleration is applied.
+        static constexpr float accelThreshold   = 0.60f;
+        // Magnitude below which deceleration (toward minSpeed) is applied.
+        static constexpr float decelThreshold   = 0.35f;
+    }
+
     namespace smoke
     {
         static constexpr double  frameTime  {0.1};

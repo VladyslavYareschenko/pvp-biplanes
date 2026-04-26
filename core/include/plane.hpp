@@ -10,6 +10,7 @@ class Plane
     float mX{}, mY{}, mDir{};
     float mSpeed{}, mMaxSpeedVar{};
     Vec2  mSpeedVec{};
+    float mAngularVelocity{};  // deg/s — used by analog joystick control
 
     Timer mPitchCooldown  {0.0f};
     Timer mShootCooldown  {0.0f};
@@ -45,6 +46,12 @@ public:
     void Accelerate(float dt);
     void Decelerate(float dt);
     void Turn(PlanePitch dir, float dt);
+
+    // Analog joystick flight control (replaces Accelerate/Decelerate/Turn when joystick is active).
+    //   targetDir  – desired heading in game degrees (0=up, CW-positive)
+    //   magnitude  – joystick deflection [0, 1]
+    //   dt         – tick delta time (seconds)
+    void ApplyAnalogJoystick(float targetDir, float magnitude, float dt);
 
     // Returns true if a bullet should be spawned by the caller
     bool Shoot(float dt);

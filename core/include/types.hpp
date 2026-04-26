@@ -28,3 +28,10 @@ enum class PlaneType     : uint8_t { Blue = 0, Red = 1 };
 enum class PlanePitch    : uint8_t { Idle, Left, Right };
 enum class PlaneThrottle : uint8_t { Idle, Increase, Decrease };
 enum class ChuteState    : uint8_t { Idle, Left, Right, Destroyed, None };
+
+// Analog joystick state — when active, overrides discrete throttle + pitch inputs.
+struct JoystickState {
+    float angle{};     // target heading in degrees: 0=up, 90=right, 180=down, 270=left
+    float magnitude{}; // deflection 0.0 (dead center) … 1.0 (full deflection)
+    bool  active{};    // true while the joystick touch is held
+};

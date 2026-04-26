@@ -126,6 +126,7 @@ static void pumpClient(Client& c, uint64_t serverTick)
             c.lastInput.pitch    = msg.pitch;
             c.lastInput.shoot    = msg.shoot;
             c.lastInput.jump     = msg.jump;
+            c.lastInput.joystick = { msg.jsAngle, msg.jsMag, msg.jsActive };
             c.ready = true;
         } catch (...) {
             std::cerr << "[server] malformed input from player " << c.playerId << "\n";

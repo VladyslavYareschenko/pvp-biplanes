@@ -12,10 +12,9 @@ final class TouchControlsView: UIView {
 
     private let bridge: BiplanesBridge
 
-    // ── Joystick geometry ───────────────────────────────────────────────────
     private let baseRadius:   CGFloat = 68
     private let knobRadius:   CGFloat = 30
-    private let deadFraction: CGFloat = 0.18   // fraction of baseRadius before input registers
+    private let deadFraction: CGFloat = 0.18
 
     private let stickBase = UIView()
     private let stickKnob = UIView()
@@ -23,15 +22,9 @@ final class TouchControlsView: UIView {
     private var stickCenter:      CGPoint = .zero
     private var activeStickTouch: UITouch?
 
-    // ── Action buttons ──────────────────────────────────────────────────────
     private let shootBtn = TouchControlsView.makeRoundBtn(size: 72,  symbol: "🔫")
     private let jumpBtn  = TouchControlsView.makeRoundBtn(size: 56,  symbol: "⏏")
 
-    // ── Bridge state cache (avoid redundant calls) ──────────────────────────
-    private var lastPitch    = 0
-    private var lastThrottle = 0
-
-    // ── Init ────────────────────────────────────────────────────────────────
 
     init(bridge: BiplanesBridge) {
         self.bridge = bridge
@@ -43,8 +36,6 @@ final class TouchControlsView: UIView {
     }
 
     required init?(coder: NSCoder) { fatalError() }
-
-    // ── UI construction ─────────────────────────────────────────────────────
 
     private func setupJoystickVisuals() {
         stickBase.layer.cornerRadius = baseRadius
@@ -77,8 +68,6 @@ final class TouchControlsView: UIView {
                           for: [.touchUpInside, .touchUpOutside, .touchCancel, .touchDragExit])
     }
 
-    // ── Layout ──────────────────────────────────────────────────────────────
-
     override func layoutSubviews() {
         super.layoutSubviews()
 
@@ -87,22 +76,18 @@ final class TouchControlsView: UIView {
         let jumpSide: CGFloat  = 56
         let gap: CGFloat       = 20
 
-        // Shoot — bottom-right corner
         shootBtn.frame = CGRect(
             x: bounds.width  - shootSide - pad,
             y: bounds.height - shootSide - pad,
             width: shootSide, height: shootSide)
         shootBtn.layer.cornerRadius = shootSide / 2
 
-        // Eject — same vertical center, left of shoot
         jumpBtn.frame = CGRect(
             x: shootBtn.frame.minX - jumpSide - gap,
             y: shootBtn.frame.midY - jumpSide / 2,
             width: jumpSide, height: jumpSide)
         jumpBtn.layer.cornerRadius = jumpSide / 2
     }
-
-    // ── Touch handling ──────────────────────────────────────────────────────
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         for touch in touches {
@@ -128,8 +113,6 @@ final class TouchControlsView: UIView {
         releaseStickIfNeeded(touches)
     }
 
-    // ── Joystick logic ───────────────────────────────────────────────────────
-
     private func showStick(at center: CGPoint) {
         let d = baseRadius * 2
         stickBase.frame = CGRect(x: center.x - baseRadius, y: center.y - baseRadius,
@@ -142,7 +125,7 @@ final class TouchControlsView: UIView {
 
     private func updateJoystick(loc: CGPoint) {
         let dx   = loc.x - stickCenter.x
-        let dy   = loc.y - stickCenter.y   // positive = downward on screen
+        let dy   = loc.y - stickCenter.y
         let dist = hypot(dx, dy)
         let clamped = min(dist, baseRadius)
         let angle   = atan2(dy, dx)
@@ -150,27 +133,12 @@ final class TouchControlsView: UIView {
             x: stickCenter.x + cos(angle) * clamped,
             y: stickCenter.y + sin(angle) * clamped)
 
-        let dead = baseRadius * deadFraction
+        let magnitude = Float(clamped / baseRadius)
 
-        let newPitch: Int
-        if      dx < -dead { newPitch =  1 }
-        else if dx >  dead { newPitch =  2 }
-        else               { newPitch =  0 }
-
-        // Screen Y is inverted: pulling up (negative dy) → throttle increase
-        let newThrottle: Int
-        if      dy < -dead { newThrottle =  1 }
-        else if dy >  dead { newThrottle = -1 }
-        else               { newThrottle =  0 }
-
-        if newPitch != lastPitch {
-            bridge.setPitch(Int32(newPitch))
-            lastPitch = newPitch
-        }
-        if newThrottle != lastThrottle {
-            bridge.setThrottle(Int32(newThrottle))
-            lastThrottle = newThrottle
-        }
+        // Game convention: 0° = up, clockwise positive.
+        // atan2(dx, -dy) maps screen drag to that convention.
+        let gameAngle = Float(atan2(dx, -dy) * 180.0 / .pi)
+        bridge.setJoystick(gameAngle, magnitude: magnitude, active: true)
     }
 
     private func releaseStickIfNeeded(_ touches: Set<UITouch>) {
@@ -178,11 +146,8 @@ final class TouchControlsView: UIView {
         activeStickTouch = nil
         stickBase.isHidden = true
         stickKnob.isHidden = true
-        if lastPitch    != 0 { bridge.setPitch(0);    lastPitch    = 0 }
-        if lastThrottle != 0 { bridge.setThrottle(0); lastThrottle = 0 }
+        bridge.setJoystick(0, magnitude: 0, active: false)
     }
-
-    // ── Button actions ───────────────────────────────────────────────────────
 
     @objc private func shootDown() {
         bridge.setShoot(true)
@@ -211,8 +176,6 @@ final class TouchControlsView: UIView {
             self.jumpBtn.backgroundColor = UIColor.white.withAlphaComponent(0.22)
         }
     }
-
-    // ── Factory ─────────────────────────────────────────────────────────────
 
     private static func makeRoundBtn(size: CGFloat, symbol: String) -> UIButton {
         let b = UIButton(type: .custom)

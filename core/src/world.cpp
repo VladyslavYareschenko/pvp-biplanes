@@ -1,6 +1,8 @@
 #include <core/include/world.hpp>
 #include <core/include/constants.hpp>
 
+#include <cmath>
+
 GameWorld::GameWorld()
 {
     planes[0] = Plane{PlaneType::Blue};
@@ -60,28 +62,53 @@ void GameWorld::applyInput(int idx, const PlayerInput& input)
 
     if (plane.isDead()) return;
 
-    // Throttle
-    if (input.throttle == PlaneThrottle::Increase)
-        plane.Accelerate(TICK_DT);
-    else if (input.throttle == PlaneThrottle::Decrease)
-        plane.Decelerate(TICK_DT);
+    const JoystickState& js = input.joystick;
 
-    // Pitch — plane or pilot movement
-    if (plane.hasJumped()) {
-        if (input.pitch == PlanePitch::Left)
-            plane.pilot.Move(PlanePitch::Left, TICK_DT);
-        else if (input.pitch == PlanePitch::Right)
-            plane.pilot.Move(PlanePitch::Right, TICK_DT);
-        else
-            plane.pilot.MoveIdle();
+    if (js.active) {
+        // ---- Analog joystick mode -------------------------------------------
+        if (plane.hasJumped()) {
+            // Pilot on parachute: use X-component of joystick for left/right movement.
+            const float sx = std::sin(js.angle * (3.14159265f / 180.0f));
+            if (sx < -0.2f)
+                plane.pilot.Move(PlanePitch::Left,  TICK_DT);
+            else if (sx > 0.2f)
+                plane.pilot.Move(PlanePitch::Right, TICK_DT);
+            else
+                plane.pilot.MoveIdle();
+        } else if (plane.isOnGround()) {
+            // On ground: accelerate for takeoff when stick is pushed.
+            if (js.magnitude > 0.4f)
+                plane.Accelerate(TICK_DT);
+        } else {
+            // Airborne: full analog flight control.
+            plane.ApplyAnalogJoystick(js.angle, js.magnitude, TICK_DT);
+        }
     } else {
-        if (input.pitch == PlanePitch::Left)
-            plane.Turn(PlanePitch::Left, TICK_DT);
-        else if (input.pitch == PlanePitch::Right)
-            plane.Turn(PlanePitch::Right, TICK_DT);
+        // ---- Discrete (legacy) button mode ----------------------------------
+
+        // Throttle
+        if (input.throttle == PlaneThrottle::Increase)
+            plane.Accelerate(TICK_DT);
+        else if (input.throttle == PlaneThrottle::Decrease)
+            plane.Decelerate(TICK_DT);
+
+        // Pitch — plane or pilot movement
+        if (plane.hasJumped()) {
+            if (input.pitch == PlanePitch::Left)
+                plane.pilot.Move(PlanePitch::Left, TICK_DT);
+            else if (input.pitch == PlanePitch::Right)
+                plane.pilot.Move(PlanePitch::Right, TICK_DT);
+            else
+                plane.pilot.MoveIdle();
+        } else {
+            if (input.pitch == PlanePitch::Left)
+                plane.Turn(PlanePitch::Left, TICK_DT);
+            else if (input.pitch == PlanePitch::Right)
+                plane.Turn(PlanePitch::Right, TICK_DT);
+        }
     }
 
-    // Shoot
+    // Shoot — always available regardless of input mode
     if (input.shoot && plane.canShoot()) {
         if (plane.Shoot(TICK_DT)) {
             const Vec2 off = plane.bulletSpawnOffset();
@@ -93,7 +120,7 @@ void GameWorld::applyInput(int idx, const PlayerInput& input)
         }
     }
 
-    // Jump / chute
+    // Jump / chute — always available regardless of input mode
     if (input.jump) {
         if (!plane.hasJumped()) {
             if (plane.Jump()) {

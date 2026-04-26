@@ -65,6 +65,12 @@
 - (void)setShoot:(BOOL)shoot;
 - (void)setJump:(BOOL)jump;
 
+// Analog joystick — when active, overrides throttle + pitch for flight.
+//   angle    : target heading in game degrees (0=up, 90=right, 180=down, 270=left)
+//   magnitude: stick deflection [0.0 … 1.0]
+//   active   : YES while touch is held, NO on release
+- (void)setJoystick:(float)angle magnitude:(float)magnitude active:(BOOL)active;
+
 // ── State (call on main thread each frame) ─────────────────────────────────
 /// Returns the latest game state snapshot. Never nil after start.
 - (BiplanesBridgeState*)currentState;

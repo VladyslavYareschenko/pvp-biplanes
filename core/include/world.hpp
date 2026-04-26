@@ -10,6 +10,7 @@ struct PlayerInput {
     PlanePitch    pitch   {PlanePitch::Idle};
     bool          shoot   {};
     bool          jump    {};
+    JoystickState joystick{};  // when active, overrides throttle + pitch
 };
 
 struct GameWorld

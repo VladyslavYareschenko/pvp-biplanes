@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+#include <cmath>
 #include <stdexcept>
 
 // ---------------------------------------------------------------------------
@@ -54,6 +55,10 @@ struct InputMessage
     PlanePitch    pitch    {PlanePitch::Idle};
     bool          shoot    {};
     bool          jump     {};
+    // Analog joystick (optional, client sets jsActive=true when using joystick)
+    bool          jsActive {};
+    float         jsAngle  {};  // degrees [0, 360)
+    float         jsMag    {};  // magnitude [0, 1]
 
     std::string toJson() const
     {
@@ -64,6 +69,9 @@ struct InputMessage
         j["pitch"]    = static_cast<int>(pitch);
         j["shoot"]    = shoot;
         j["jump"]     = jump;
+        j["jsActive"] = jsActive;
+        j["jsAngle"]  = jsAngle;
+        j["jsMag"]    = jsMag;
         return j.dump();
     }
 
@@ -74,8 +82,14 @@ struct InputMessage
         m.tick     = j.value("tick",     uint64_t{0});
         m.throttle = static_cast<PlaneThrottle>(j.value("throttle", 0));
         m.pitch    = static_cast<PlanePitch>   (j.value("pitch",    0));
-        m.shoot    = j.value("shoot", false);
-        m.jump     = j.value("jump",  false);
+        m.shoot    = j.value("shoot",    false);
+        m.jump     = j.value("jump",     false);
+        m.jsActive = j.value("jsActive", false);
+        // Clamp to valid ranges for server-side safety.
+        const float rawAngle = j.value("jsAngle", 0.0f);
+        const float rawMag   = j.value("jsMag",   0.0f);
+        m.jsAngle = rawAngle - 360.0f * std::floor(rawAngle / 360.0f); // [0, 360)
+        m.jsMag   = std::max(0.0f, std::min(1.0f, rawMag));
         return m;
     }
 };
