@@ -1,3 +1,4 @@
+_deps/
 build/
 build_ios/
 build_ios_arm64_device/

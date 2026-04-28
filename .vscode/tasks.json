@@ -4,7 +4,7 @@
         {
             "label": "cmake-configure",
             "type": "shell",
-            "command": "cmake -S . -B build -DSDL2_DIR=/usr/local/opt/sdl2/lib/cmake/SDL2",
+            "command": "cmake -S . -B build",
             "options": { "cwd": "${workspaceFolder}" },
             "group": "build",
             "presentation": { "reveal": "always", "panel": "shared" }
