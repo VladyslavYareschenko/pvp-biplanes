@@ -872,7 +872,7 @@ void Plane::Pilot::HitGroundCheck()
     namespace p     = constants::pilot;
     namespace chute = p::chute;
 
-    if (mY <= p::groundCollision) return;
+    if ((mY + p::sizeY * 0.5) <= p::groundCollision) return;
 
     if (mSpeed.y <= p::safeLandingSpeed) {
         FallSurvive();
@@ -895,7 +895,7 @@ void Plane::Pilot::FallSurvive()
 {
     namespace p = constants::pilot;
 
-    mY           = p::groundCollision;
+    mY           = p::groundCollision - p::sizeY * 0.5;
     mIsRunning   = true;
     mIsChuteOpen = false;
     mSpeed       = {};

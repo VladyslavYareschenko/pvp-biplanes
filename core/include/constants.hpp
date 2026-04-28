@@ -50,8 +50,8 @@ namespace constants
         static constexpr float spawnRedX  {(baseWidth - 16.f) / baseWidth};
         static constexpr float spawnY     {180.44f / baseHeight};
 
-        static constexpr float spawnRotationBlue {67.5f};
-        static constexpr float spawnRotationRed  {292.5f};
+        static constexpr float spawnRotationBlue {80.0f};
+        static constexpr float spawnRotationRed  {280.0f};
 
         static constexpr float takeoffDirectionBlue {90.f};
         static constexpr float takeoffDirectionRed  {270.f};
@@ -83,9 +83,9 @@ namespace constants
 
     namespace smoke
     {
-        static constexpr double  frameTime  {0.1};
+        static constexpr double  frameTime  {0.045};
         static constexpr uint8_t frameCount {5};
-        static constexpr double  cooldown   {1.0};
+        static constexpr double  cooldown   {0.0};
     }
 
     namespace fire
@@ -102,8 +102,8 @@ namespace constants
 
     namespace barn
     {
-        static constexpr float sizeX {35.f / baseWidth};
-        static constexpr float sizeY {22.f / baseHeight};
+        static constexpr float sizeX {36.f / baseWidth};
+        static constexpr float sizeY {33.f / baseHeight};
 
         static constexpr float planeCollisionX {0.5f - sizeX * 0.5f};
         static constexpr float planeCollisionY {163.904f / baseHeight};
@@ -119,7 +119,7 @@ namespace constants
     namespace pilot
     {
         static constexpr float sizeX           {7.f / baseWidth};
-        static constexpr float sizeY           {7.f / baseHeight};
+        static constexpr float sizeY           {12.f / baseHeight};
         static constexpr float groundCollision {185.64f / baseHeight};
 
         static constexpr float gravity            {0.2f};
@@ -136,7 +136,7 @@ namespace constants
         namespace chute
         {
             static constexpr float sizeX   {20.f / baseWidth};
-            static constexpr float sizeY   {12.f / baseHeight};
+            static constexpr float sizeY   {18.f / baseHeight};
             static constexpr float offsetY {1.375f * chute::sizeY};
 
             static constexpr double frameTime {0.25};

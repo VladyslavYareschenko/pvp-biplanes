@@ -16,14 +16,27 @@ final class TouchControlsView: UIView {
     private let knobRadius:   CGFloat = 30
     private let deadFraction: CGFloat = 0.18
 
+    // Set by GameViewController after layout to define sidebar boundaries.
+    // If zero, falls back to half-screen split.
+    var leftZoneMaxX:  CGFloat = 0
+    var rightZoneMinX: CGFloat = 0
+
+    private var effectiveLeftZoneMaxX: CGFloat {
+        leftZoneMaxX > 0 ? leftZoneMaxX : bounds.width * 0.5
+    }
+    private var effectiveRightZoneMinX: CGFloat {
+        rightZoneMinX > 0 ? rightZoneMinX : bounds.width * 0.5
+    }
+
     private let stickBase = UIView()
     private let stickKnob = UIView()
 
-    private var stickCenter:      CGPoint = .zero
-    private var activeStickTouch: UITouch?
+    private var stickCenter:        CGPoint = .zero
+    private var defaultStickCenter: CGPoint = .zero
+    private var activeStickTouch:   UITouch?
 
-    private let shootBtn = TouchControlsView.makeRoundBtn(size: 72,  symbol: "🔫")
-    private let jumpBtn  = TouchControlsView.makeRoundBtn(size: 56,  symbol: "⏏")
+    private let shootBtn = TouchControlsView.makeRoundBtn(size: 72,  imageName: "bullet")
+    private let jumpBtn  = TouchControlsView.makeRoundBtn(size: 56,  imageName: "parachute")
 
 
     init(bridge: BiplanesBridge) {
@@ -43,13 +56,11 @@ final class TouchControlsView: UIView {
         stickBase.layer.borderColor  = UIColor.white.withAlphaComponent(0.35).cgColor
         stickBase.backgroundColor    = UIColor.white.withAlphaComponent(0.08)
         stickBase.isUserInteractionEnabled = false
-        stickBase.isHidden = true
         addSubview(stickBase)
 
         stickKnob.layer.cornerRadius = knobRadius
         stickKnob.backgroundColor    = UIColor.white.withAlphaComponent(0.55)
         stickKnob.isUserInteractionEnabled = false
-        stickKnob.isHidden = true
         addSubview(stickKnob)
     }
 
@@ -71,20 +82,33 @@ final class TouchControlsView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
 
-        let pad: CGFloat       = 36
+        // Default joystick position: center-left zone, slightly below vertical center
+        let leftCenterX = effectiveLeftZoneMaxX * 0.5
+        let leftCenterY = bounds.height * 0.62
+        defaultStickCenter = CGPoint(x: leftCenterX, y: leftCenterY)
+        if activeStickTouch == nil {
+            showStick(at: defaultStickCenter)
+        }
+
+        let rightStart = effectiveRightZoneMinX
+        let rightWidth = bounds.width - rightStart
+        let cx = rightStart + rightWidth * 0.5
+
         let shootSide: CGFloat = 72
-        let jumpSide: CGFloat  = 56
-        let gap: CGFloat       = 20
+        let jumpSide:  CGFloat = 56
+        let gap:       CGFloat = 24
+        let totalH     = shootSide + gap + jumpSide
+        let groupTop   = (bounds.height - totalH) * 0.5 + bounds.height * 0.1
 
         shootBtn.frame = CGRect(
-            x: bounds.width  - shootSide - pad,
-            y: bounds.height - shootSide - pad,
+            x: cx - shootSide / 2,
+            y: groupTop + jumpSide + gap,
             width: shootSide, height: shootSide)
         shootBtn.layer.cornerRadius = shootSide / 2
 
         jumpBtn.frame = CGRect(
-            x: shootBtn.frame.minX - jumpSide - gap,
-            y: shootBtn.frame.midY - jumpSide / 2,
+            x: cx - jumpSide / 2,
+            y: groupTop,
             width: jumpSide, height: jumpSide)
         jumpBtn.layer.cornerRadius = jumpSide / 2
     }
@@ -93,7 +117,7 @@ final class TouchControlsView: UIView {
         for touch in touches {
             guard activeStickTouch == nil else { continue }
             let loc = touch.location(in: self)
-            guard loc.x < bounds.width * 0.5 else { continue }
+            guard loc.x < effectiveLeftZoneMaxX else { continue }
             activeStickTouch = touch
             stickCenter = loc
             showStick(at: loc)
@@ -114,13 +138,11 @@ final class TouchControlsView: UIView {
     }
 
     private func showStick(at center: CGPoint) {
+        stickCenter = center
         let d = baseRadius * 2
         stickBase.frame = CGRect(x: center.x - baseRadius, y: center.y - baseRadius,
                                  width: d, height: d)
-        stickKnob.frame = CGRect(x: center.x - knobRadius, y: center.y - knobRadius,
-                                 width: knobRadius * 2, height: knobRadius * 2)
-        stickBase.isHidden = false
-        stickKnob.isHidden = false
+        stickKnob.center = center
     }
 
     private func updateJoystick(loc: CGPoint) {
@@ -144,8 +166,7 @@ final class TouchControlsView: UIView {
     private func releaseStickIfNeeded(_ touches: Set<UITouch>) {
         guard let active = activeStickTouch, touches.contains(active) else { return }
         activeStickTouch = nil
-        stickBase.isHidden = true
-        stickKnob.isHidden = true
+        showStick(at: defaultStickCenter)   // return to resting position, stay visible
         bridge.setJoystick(0, magnitude: 0, active: false)
     }
 
@@ -177,10 +198,15 @@ final class TouchControlsView: UIView {
         }
     }
 
-    private static func makeRoundBtn(size: CGFloat, symbol: String) -> UIButton {
+    private static func makeRoundBtn(size: CGFloat, imageName: String) -> UIButton {
         let b = UIButton(type: .custom)
-        b.setTitle(symbol, for: .normal)
-        b.titleLabel?.font    = .systemFont(ofSize: size * 0.40)
+        if let img = UIImage(named: imageName) {
+            let padding: CGFloat = size * 0.18
+            b.setImage(img, for: .normal)
+            b.imageView?.contentMode = .scaleAspectFit
+            b.imageEdgeInsets = UIEdgeInsets(top: padding, left: padding,
+                                             bottom: padding, right: padding)
+        }
         b.backgroundColor     = UIColor.white.withAlphaComponent(0.22)
         b.layer.borderColor   = UIColor.white.withAlphaComponent(0.40).cgColor
         b.layer.borderWidth   = 1.5

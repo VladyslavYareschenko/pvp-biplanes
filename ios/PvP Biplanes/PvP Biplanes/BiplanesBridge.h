@@ -11,12 +11,18 @@
 @property int   hp, score;
 @property BOOL  isDead, isOnGround, isTakingOff, hasJumped;
 @property float protectionRemaining;
+@property uint8_t smokeFrame;  // 0 = no smoke, 1-4 = frame index
+@property int8_t  fireFrame;   // -1 = no fire, 0-2 = frame index
 
 // Pilot
 @property float  pilotX, pilotY;
 @property BOOL   pilotIsDead;
 @property BOOL   pilotChuteOpen, pilotChuteBroken;
 @property BOOL   pilotIsRunning;
+@property int8_t  pilotFallFrame;  // 0-2
+@property uint8_t pilotRunFrame;   // 0-3
+@property int16_t pilotDir;        // movement direction in degrees (0=up, 90=right)
+@property BOOL    pilotIsMoving;   // YES when pilot has non-zero move speed on ground
 @end
 
 @interface BulletState : NSObject
