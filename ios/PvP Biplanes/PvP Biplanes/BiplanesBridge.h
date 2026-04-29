@@ -21,6 +21,7 @@
 @property BOOL   pilotIsRunning;
 @property int8_t  pilotFallFrame;  // 0-2
 @property uint8_t pilotRunFrame;   // 0-3
+@property int8_t  pilotAngelFrame; // 0-3 (when pilot is dead)
 @property int16_t pilotDir;        // movement direction in degrees (0=up, 90=right)
 @property BOOL    pilotIsMoving;   // YES when pilot has non-zero move speed on ground
 @end

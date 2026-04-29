@@ -29,6 +29,7 @@ final class GameScene: SKScene {
     private var lastUpdateTime: TimeInterval = 0
     private var prevFireFrame  = [Int](repeating: -1, count: 2)
     private var prevIsDead     = [Bool](repeating: false, count: 2)
+    private var prevPilotIsDead = [Bool](repeating: false, count: 2)
     // Last-alive state needed to spawn sparks at correct position/direction
     private var lastWorldX     = [Float](repeating: 0, count: 2)
     private var lastWorldY     = [Float](repeating: 0, count: 2)
@@ -53,18 +54,40 @@ final class GameScene: SKScene {
     ]
 
     // Pilots — sprite-based with fall/run/idle animation
-    private let pilotFallTextures: [[SKTexture]] = [
-        (1...3).map { SKTexture(imageNamed: "pilot_fall_green\($0)") },
-        (1...3).map { SKTexture(imageNamed: "pilot_fall_red\($0)") }
-    ]
-    private let pilotRunTextures: [[SKTexture]] = [
-        (1...5).map { SKTexture(imageNamed: "pilot_run_green\($0)") },
-        (1...5).map { SKTexture(imageNamed: "pilot_run_red\($0)") }
-    ]
-    private let pilotIdleTextures: [SKTexture] = [
-        SKTexture(imageNamed: "pilot_idle_green"),
-        SKTexture(imageNamed: "pilot_idle_red")
-    ]
+    private let pilotFallTextures: [[SKTexture]] = {
+        let textures = [
+            (1...3).map { SKTexture(imageNamed: "pilot_fall_green\($0)") },
+            (1...3).map { SKTexture(imageNamed: "pilot_fall_red\($0)") }
+        ]
+        textures.forEach { colors in colors.forEach { $0.filteringMode = .linear } }
+        return textures
+    }()
+    private let pilotRunTextures: [[SKTexture]] = {
+        let textures = [
+            (1...5).map { SKTexture(imageNamed: "pilot_run_green\($0)") },
+            (1...5).map { SKTexture(imageNamed: "pilot_run_red\($0)") }
+        ]
+        textures.forEach { colors in colors.forEach { $0.filteringMode = .linear } }
+        return textures
+    }()
+    private let pilotIdleTextures: [SKTexture] = {
+        let textures = [
+            SKTexture(imageNamed: "pilot_idle_green"),
+            SKTexture(imageNamed: "pilot_idle_red")
+        ]
+        textures.forEach { $0.filteringMode = .linear }
+        return textures
+    }()
+    private let pilotAngelTextures: [SKTexture] = {
+        let textures = [
+            SKTexture(imageNamed: "pilot_angel1"),
+            SKTexture(imageNamed: "pilot_angel2"),
+            SKTexture(imageNamed: "pilot_angel3"),
+            SKTexture(imageNamed: "pilot_angel4")
+        ]
+        textures.forEach { $0.filteringMode = .linear }
+        return textures
+    }()
     private var pilotNodes      = [SKSpriteNode(), SKSpriteNode()]
     private var chuteNodes      = [SKSpriteNode(), SKSpriteNode()]
     private var pilotAnimTimer  = [TimeInterval](repeating: 0, count: 2)
@@ -81,6 +104,30 @@ final class GameScene: SKScene {
     private var hpBarFg        = [SKShapeNode(), SKShapeNode()]
     private var modeLabel      = SKLabelNode()
     private var winLabel       = SKLabelNode()
+
+    // Zeppelin score display
+    private var zeppilinNode   = SKSpriteNode()
+    private var zeppilinScoreLabels: [SKLabelNode] = [SKLabelNode(), SKLabelNode()]
+    private var zeppilinX: CGFloat = 0.5
+    private var zeppilinY: CGFloat = 0.2
+    private var zeppilinIsAscending = true
+    private var zeppilinVX: CGFloat = 0.012   // world-space units per second
+    private var zeppilinVY: CGFloat = 0.008
+    private var zeppilinDirChangeTimer: TimeInterval = 0
+    private var zeppilinNextDirChange: TimeInterval = TimeInterval.random(in: 2.0...5.0)
+    
+    private var prevBulletCount = 0
+    private var prevRoundFinished = false
+    
+    // Audio tracking for state changes
+    private var prevChuteOpen = [Bool](repeating: false, count: 2)
+    private var prevChuteBroken = [Bool](repeating: false, count: 2)
+    private var prevIsRunning = [Bool](repeating: false, count: 2)
+    private var prevHP = [Int](repeating: 0, count: 2)
+    private var prevHasJumped = [Bool](repeating: false, count: 2)
+    private var prevPilotIsFalling = [Bool](repeating: false, count: 2)
+    private var chuteLoopPlaying = [Bool](repeating: false, count: 2)
+    private var fallLoopPlaying = [Bool](repeating: false, count: 2)
 
     // Static scene
     private var bgNode         = SKSpriteNode()
@@ -122,8 +169,8 @@ final class GameScene: SKScene {
 
     // Plane colours for HUD (score / HP bar labels)
     private let planeColors: [SKColor] = [
-        SKColor(red: 0.31, green: 0.70, blue: 0.31, alpha: 1),  // green
-        SKColor(red: 0.86, green: 0.31, blue: 0.31, alpha: 1),  // red
+        SKColor(red: 0.48, green: 0.55, blue: 0.35, alpha: 1),  // green
+        SKColor(red: 0.63, green: 0.25, blue: 0.18, alpha: 1),  // red
     ]
 
     // ── Init ───────────────────────────────────────────────────────────────
@@ -143,7 +190,7 @@ final class GameScene: SKScene {
         buildStaticScene()
         buildDynamicNodes()
         startCloudSpawner()
-//        buildDebugOverlay()
+        buildDebugOverlay()
     }
 
     // ── Debug overlay ───────────────────────────────────────────────────────
@@ -380,6 +427,32 @@ final class GameScene: SKScene {
         winLabel.verticalAlignmentMode   = .center
         winLabel.position = CGPoint(x: size.width * 0.5, y: size.height * 0.5)
         addChild(winLabel)
+
+        // Zeppelin with score display
+        let zeppelinTexture = SKTexture(imageNamed: "zeppilin")
+        zeppelinTexture.filteringMode = .linear
+        zeppilinNode = SKSpriteNode(texture: zeppelinTexture)
+        zeppilinNode.size = CGSize(width: 80, height: 44)
+        zeppilinNode.zPosition = 15
+        zeppilinY = 0.2
+        zeppilinNode.position = CGPoint(x: size.width * 0.5, y: size.height * (1.0 - zeppilinY))
+        addChild(zeppilinNode)
+
+        // Score labels on zeppelin
+        for i in 0..<2 {
+            let scoreLabel = SKLabelNode(fontNamed: "AmericanTypewriter")
+            scoreLabel.fontSize = 16
+            scoreLabel.fontColor = planeColors[i]
+            scoreLabel.zPosition = 16
+            scoreLabel.text = "0"
+            scoreLabel.horizontalAlignmentMode = (i == 0) ? .right : .left
+            scoreLabel.position = CGPoint(
+                x: size.width * 0.5 + (i == 0 ? -6 : 10),
+                y: size.height * (1.0 - zeppilinY) - 2
+            )
+            addChild(scoreLabel)
+            zeppilinScoreLabels[i] = scoreLabel
+        }
     }
 
     // ── Clouds ─────────────────────────────────────────────────────────────
@@ -464,8 +537,9 @@ final class GameScene: SKScene {
         updatePlanes(planes, dt: dt)
         updateSparks(dt: dt)
         updateBullets(bullets)
+        updateZeppelin(dt: dt)
         updateHUD(planes: planes, state: state)
-//        updateDebugOverlay(planes)
+        updateDebugOverlay(planes)
     }
 
     // ── Planes & pilots ────────────────────────────────────────────────────
@@ -482,6 +556,7 @@ final class GameScene: SKScene {
                     spawnExplosion(at: deathPos)
                     spawnSparks(worldX: lastWorldX[i], worldY: lastWorldY[i],
                                 dir: lastPlaneDir[i], speed: lastPlaneSpeed[i])
+                    AudioManager.shared.playSound("explosion")
                 }
                 planeNodes[i].isHidden = true
                 smokeTimer[i] = 0
@@ -493,13 +568,17 @@ final class GameScene: SKScene {
                     planeNodes[0].removeAction(forKey: "fly")
                     planeNodes[0].texture = greenIdleTexture
                     greenIsAnimating = false
-                }
-                if i == 1 && redIsAnimating {
+                } else if i == 1 && redIsAnimating {
                     planeNodes[1].removeAction(forKey: "fly")
                     planeNodes[1].texture = redIdleTexture
                     redIsAnimating = false
                 }
             } else if !p.isDead {
+                // Track HP changes for hit_plane sound
+                if p.hp < prevHP[i] && p.hp > 0 {
+                    AudioManager.shared.playSound("hit_plane")
+                }
+                prevHP[i] = Int(p.hp)
                 prevIsDead[i] = false
                 planeNodes[i].isHidden = false
 
@@ -573,15 +652,40 @@ final class GameScene: SKScene {
 
             // Pilot
             if p.hasJumped {
+                // Track if pilot just jumped
+                if !prevHasJumped[i] {
+                    prevHasJumped[i] = true
+                }
                 let ppos = worldToScreen(x: CGFloat(p.pilotX), y: CGFloat(p.pilotY))
-                pilotNodes[i].isHidden = p.pilotIsDead
-                pilotNodes[i].position = ppos
+                
+                if p.pilotIsDead {
+                    if !prevPilotIsDead[i] {
+                        AudioManager.shared.playSound("pilot_death")
+                    }
+                    
+                    // Show angel animation
+                    let angelIdx = Int(max(0, p.pilotAngelFrame)) % 4
+                    pilotNodes[i].texture = pilotAngelTextures[angelIdx]
+                    pilotNodes[i].size = CGSize(width: 20, height: 30)
+                    pilotNodes[i].xScale = 1
+                    pilotNodes[i].position = ppos
+                    pilotNodes[i].isHidden = false
+                    chuteNodes[i].isHidden = true
+                    
+                    prevPilotIsDead[i] = true
+                } else {
+                    pilotNodes[i].position = ppos
 
-                if !p.pilotIsDead {
                     let isRunning = p.pilotIsRunning
                     // Use C++ frames directly — they freeze when idle, so no Swift timer needed
                     let runIdx  = Int(p.pilotRunFrame)  % 4
                     let fallIdx = Int(max(0, p.pilotFallFrame)) % 3
+                    
+                    // Track running transition for hit_ground sound
+                    if isRunning && !prevIsRunning[i] {
+                        AudioManager.shared.playSound("hit_ground")
+                    }
+                    prevIsRunning[i] = isRunning
 
                     if isRunning && p.pilotIsMoving {
                         pilotNodes[i].texture = pilotRunTextures[i][runIdx]
@@ -606,26 +710,108 @@ final class GameScene: SKScene {
                         pilotNodes[i].size    = CGSize(width: 15.6, height: 24.2)
                         pilotNodes[i].xScale  = 1
                         pilotNodes[i].position = ppos
+                        
+                        // Track falling for fall_loop sound
+                        let isFalling = Float(p.pilotY) <= 0.85 && !p.pilotChuteOpen
+                        if isFalling && !prevPilotIsFalling[i] {
+                            AudioManager.shared.playSound("fall_loop")
+                        }
+                        prevPilotIsFalling[i] = isFalling
                     }
 
                     // Chute — anchor is bottom-center; attach to TOP of pilot sprite
                     if p.pilotChuteOpen {
+                        // Track chute opening for chute_loop sound
+                        if !prevChuteOpen[i] {
+                            AudioManager.shared.playSound("chute_loop")
+                        }
+                        prevChuteOpen[i] = true
+                        
+                        // Track chute breaking for hit_chute sound
+                        if p.pilotChuteBroken && !prevChuteBroken[i] {
+                            AudioManager.shared.playSound("hit_chute")
+                        }
+                        prevChuteBroken[i] = p.pilotChuteBroken
+                        
                         chuteNodes[i].isHidden = false
                         chuteNodes[i].position = CGPoint(x: ppos.x, y: ppos.y + 11)
                         chuteNodes[i].color          = p.pilotChuteBroken ? SKColor(red: 0.9, green: 0.3, blue: 0.3, alpha: 1) : .white
                         chuteNodes[i].colorBlendFactor = p.pilotChuteBroken ? 0.5 : 0
                     } else {
+                        prevChuteOpen[i] = false
+                        prevChuteBroken[i] = false
                         chuteNodes[i].isHidden = true
                     }
-                } else {
-                    chuteNodes[i].isHidden = true
+                    
+                    pilotNodes[i].isHidden = false
+                    
+                    prevPilotIsDead[i] = false
                 }
             } else {
+                // Pilot not jumped - track rescue/pickup
+                if prevHasJumped[i] {
+                    AudioManager.shared.playSound("pilot_rescue")
+                }
+                prevHasJumped[i] = false
+                prevChuteOpen[i] = false
+                prevChuteBroken[i] = false
+                prevIsRunning[i] = false
+                prevPilotIsFalling[i] = false
+                chuteLoopPlaying[i] = false
+                fallLoopPlaying[i] = false
                 pilotNodes[i].isHidden = true
                 chuteNodes[i].isHidden = true
                 pilotAnimTimer[i] = 0
                 pilotAnimFrame[i] = 0
             }
+        }
+    }
+    
+    private func updateZeppelin(dt: TimeInterval) {
+        guard dt > 0 else { return }
+
+        // ── Random direction change timer ───────────────────────────────────
+        zeppilinDirChangeTimer += dt
+        if zeppilinDirChangeTimer >= zeppilinNextDirChange {
+            zeppilinDirChangeTimer = 0
+            zeppilinNextDirChange  = TimeInterval.random(in: 2.0...5.0)
+
+            // Pick a new random velocity, keeping current rough direction
+            // but adding some variance so it doesn't feel too mechanical
+            let speedX = CGFloat.random(in: 0.006...0.020)
+            let speedY = CGFloat.random(in: 0.003...0.012)
+            zeppilinVX = Bool.random() ? speedX : -speedX
+            zeppilinVY = Bool.random() ? speedY : -speedY
+        }
+
+        // ── Edge avoidance — flip axis when approaching boundaries ─────────
+        let marginX: CGFloat = 0.15   // world-space margin from left/right
+        let minY:    CGFloat = 0.05   // world-space top boundary
+        let maxY:    CGFloat = 0.45   // world-space bottom boundary (keep above barn/pilots)
+
+        if zeppilinX < marginX        { zeppilinVX =  abs(zeppilinVX) }   // too far left  → go right
+        if zeppilinX > 1.0 - marginX  { zeppilinVX = -abs(zeppilinVX) }   // too far right → go left
+        if zeppilinY < minY           { zeppilinVY =  abs(zeppilinVY) }   // too high      → descend
+        if zeppilinY > maxY           { zeppilinVY = -abs(zeppilinVY) }   // too low       → ascend
+
+        // ── Integrate position ──────────────────────────────────────────────
+        zeppilinX += zeppilinVX * CGFloat(dt)
+        zeppilinY += zeppilinVY * CGFloat(dt)
+
+        // Clamp to safe bounds so a large dt spike can't escape
+        zeppilinX = zeppilinX.clamped(to: marginX...(1.0 - marginX))
+        zeppilinY = zeppilinY.clamped(to: minY...maxY)
+
+        // ── Update node & score label positions ─────────────────────────────
+        let screenPos = worldToScreen(x: zeppilinX, y: zeppilinY)
+        zeppilinNode.position = screenPos
+
+        // Score labels sit left/right of the gondola centre
+        for i in 0..<2 {
+            zeppilinScoreLabels[i].position = CGPoint(
+                x: screenPos.x + (i == 0 ? -6 : 10),
+                y: screenPos.y - 2
+            )
         }
     }
 
@@ -637,6 +823,7 @@ final class GameScene: SKScene {
         node.position  = pos
         node.zPosition = 20  // above everything
         addChild(node)
+        AudioManager.shared.playSound("explosion")
         node.run(.sequence([
             .group([
                 .animate(with: explodeTextures, timePerFrame: 0.06, resize: false, restore: false),
@@ -783,6 +970,12 @@ final class GameScene: SKScene {
     // ── Bullets ────────────────────────────────────────────────────────────
 
     private func updateBullets(_ bullets: [BulletState]) {
+        // Detect new bullets fired
+        if bullets.count > prevBulletCount {
+            AudioManager.shared.playSound("shoot")
+        }
+        prevBulletCount = bullets.count
+        
         while bulletPool.count < bullets.count {
             let node = SKShapeNode(circleOfRadius: 3)
             node.fillColor   = SKColor(red: 1.0, green: 1.0, blue: 0.24, alpha: 1)
@@ -807,6 +1000,7 @@ final class GameScene: SKScene {
         for i in 0..<2 {
             let p = planes[i]
             scoreLabels[i].text = "Score: \(p.score)"
+            zeppilinScoreLabels[i].text = "\(p.score)"
 
             let fraction = CGFloat(max(0, p.hp)) / 3.0
             let fullWidth: CGFloat = 60
@@ -822,6 +1016,19 @@ final class GameScene: SKScene {
 
         if state.roundFinished {
             winLabel.isHidden = false
+            
+            if !prevRoundFinished {
+                if state.winnerId == 0 || state.winnerId == 1 {
+                    AudioManager.shared.playSound("victory")
+                }
+                
+                // Play defeat sound if this player lost
+                let playerId = bridge.playerId
+                if state.winnerId != playerId && state.winnerId >= 0 {
+                    AudioManager.shared.playSound("defeat")
+                }
+            }
+            
             if state.winnerId == 0 {
                 winLabel.text      = "🟢 Green Wins!"
                 winLabel.fontColor = planeColors[0]
@@ -835,6 +1042,8 @@ final class GameScene: SKScene {
         } else {
             winLabel.isHidden = true
         }
+
+        prevRoundFinished = state.roundFinished
     }
 
     // ── Coordinate helpers ─────────────────────────────────────────────────
@@ -845,5 +1054,12 @@ final class GameScene: SKScene {
             x: x * size.width,
             y: (1.0 - y) * size.height
         )
+    }
+}
+
+
+extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
     }
 }

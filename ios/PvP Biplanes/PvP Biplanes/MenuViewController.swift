@@ -25,9 +25,9 @@ final class MenuViewController: UIViewController {
         titleLabel.textAlignment = .center
 
         hostField.placeholder    = "Server IP (e.g. 192.168.1.5)"
-        hostField.text           = "127.0.0.1"
+        hostField.text           = "192.168.4.153"
         hostField.borderStyle    = .roundedRect
-        hostField.keyboardType   = .decimalPad
+        hostField.keyboardType   = .numbersAndPunctuation
         hostField.backgroundColor = UIColor.white.withAlphaComponent(0.9)
 
         portField.placeholder    = "Port"

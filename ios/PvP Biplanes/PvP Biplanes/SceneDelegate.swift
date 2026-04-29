@@ -15,11 +15,21 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = (scene as? UIWindowScene) else { return }
         let win = UIWindow(windowScene: windowScene)
-        win.backgroundColor = UIColor(red: 0.12, green: 0.12, blue: 0.20, alpha: 1)
-        let vc = MenuViewController()
-        win.rootViewController = vc
         win.makeKeyAndVisible()
         window = win
+        
+        // Show launch screen first
+        let launchVC = LaunchViewController()
+        win.rootViewController = launchVC
+        
+        // Transition to MenuViewController after delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            let menuVC = MenuViewController()
+            
+            UIView.transition(with: win, duration: 0.5, options: .transitionCrossDissolve, animations: {
+                win.rootViewController = menuVC
+            })
+        }
     }
 
     func sceneDidDisconnect(_ scene: UIScene) {

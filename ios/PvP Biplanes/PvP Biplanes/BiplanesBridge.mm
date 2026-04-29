@@ -94,6 +94,7 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
         p.pilotIsRunning  = ps.pilot.isRunning;
         p.pilotFallFrame  = ps.pilot.fallFrame;
         p.pilotRunFrame   = ps.pilot.runFrame;
+        p.pilotAngelFrame = ps.pilot.angelFrame;
         p.pilotDir        = ps.pilot.dir;
         p.pilotIsMoving   = std::abs(ps.pilot.speedX) > 0.0001f;
         [planes addObject:p];
