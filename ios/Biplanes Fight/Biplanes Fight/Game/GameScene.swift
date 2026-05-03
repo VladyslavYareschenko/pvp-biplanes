@@ -1484,6 +1484,12 @@ final class GameScene: SKScene {
     required init?(coder: NSCoder) { fatalError("not used") }
 
     override func didMove(to view: SKView) {
+        // Apply crisp nearest-neighbour filtering to all sprite-sheet textures
+        // so they stay sharp when the scene is scaled up on iPad.
+        let atlas = SKTextureAtlas(named: "biplanes")
+        for name in atlas.textureNames {
+            atlas.textureNamed(name).filteringMode = .nearest
+        }
         buildStaticScene()
         coordinator = GameCoordinator(
             bridge: bridge,
@@ -1498,9 +1504,9 @@ final class GameScene: SKScene {
 
     // Static geometry that belongs to the scene, not any renderer
     private func buildStaticScene() {
-        let bg = SKSpriteNode(
-            texture: SKTexture(imageNamed: "backround_\(bgIndex)")
-        )
+        let bgTex = SKTexture(imageNamed: "backround_\(bgIndex)")
+        bgTex.filteringMode = .nearest
+        let bg = SKSpriteNode(texture: bgTex)
         bg.size = size
         bg.position = CGPoint(x: size.width * 0.5, y: size.height * 0.5)
         bg.zPosition = -10
@@ -1509,7 +1515,9 @@ final class GameScene: SKScene {
         let barnRoofY: CGFloat = 163.904 / 208.0
         let bw = size.width * 0.14
         let bh = size.height * 0.10
-        let barn = SKSpriteNode(texture: SKTexture(imageNamed: "barn"))
+        let barnTex = SKTexture(imageNamed: "barn")
+        barnTex.filteringMode = .nearest
+        let barn = SKSpriteNode(texture: barnTex)
         barn.size = CGSize(width: bw, height: bh)
         barn.position = CGPoint(
             x: size.width * 0.5,

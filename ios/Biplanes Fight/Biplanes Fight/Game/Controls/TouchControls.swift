@@ -20,6 +20,7 @@ final class TouchControlsView: UIView {
 
     var leftZoneMaxX: CGFloat = 0
     var rightZoneMinX: CGFloat = 0
+    var edgesPositioningXCoef: CGFloat = 0.5
 
     private var effectiveLeftZoneMaxX: CGFloat {
         leftZoneMaxX > 0 ? leftZoneMaxX : bounds.width * 0.5
@@ -105,7 +106,7 @@ final class TouchControlsView: UIView {
         super.layoutSubviews()
 
         // Default joystick position: center-left zone, slightly below vertical center
-        let leftCenterX = effectiveLeftZoneMaxX * 0.5
+        let leftCenterX = effectiveLeftZoneMaxX * edgesPositioningXCoef
         let leftCenterY = bounds.height * 0.62
         defaultStickCenter = CGPoint(x: leftCenterX, y: leftCenterY)
         if activeStickTouch == nil {
@@ -114,7 +115,7 @@ final class TouchControlsView: UIView {
 
         let rightStart = effectiveRightZoneMinX
         let rightWidth = bounds.width - rightStart
-        let cx = rightStart + rightWidth * 0.5
+        let cx = rightStart + rightWidth * (1 - edgesPositioningXCoef)
 
         let shootSide: CGFloat = 72
         let jumpSide: CGFloat = 56

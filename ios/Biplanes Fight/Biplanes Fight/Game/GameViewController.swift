@@ -138,25 +138,19 @@ final class GameViewController: UIViewController {
             ])
         }
 
-        // Scene size: iPad fills screen (resizeFill), iPhone uses 4:3 canonical size.
+        // Use a canonical scene height so all element proportions look correct on
+        // every device.  iPhone uses its actual screen height; iPad uses the iPhone
+        // 16 Pro landscape reference (393 pt) so SpriteKit's aspectFit scales the
+        // fixed 4:3 coordinate space up to fill the iPad screen (~2.6× on 12.9").
         let screen = UIScreen.main.bounds
         let sceneH = min(screen.width, screen.height)
-        if isIPad {
-            let sceneW = max(screen.width, screen.height)
-            scene = GameScene(
-                bridge: bridge,
-                size: CGSize(width: sceneW, height: sceneH),
-                bgIndex: bgIndex
-            )
-            scene.scaleMode = .resizeFill
-        } else {
-            scene = GameScene(
-                bridge: bridge,
-                size: CGSize(width: sceneH * gameAspect, height: sceneH),
-                bgIndex: bgIndex
-            )
-            scene.scaleMode = .aspectFit
-        }
+        let canonicalH: CGFloat = isIPad ? 393 : sceneH
+        scene = GameScene(
+            bridge: bridge,
+            size: CGSize(width: canonicalH * gameAspect, height: canonicalH),
+            bgIndex: bgIndex
+        )
+        scene.scaleMode = .aspectFit
         skView.presentScene(scene)
 
         controlsView = TouchControlsView(bridge: bridge)
@@ -196,10 +190,16 @@ final class GameViewController: UIViewController {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        guard UIDevice.current.userInterfaceIdiom != .pad else { return }
-        let sidebarWidth = skView.frame.minX
-        if sidebarWidth >= minSidebarWidth {
-            controlsView.rightZoneMinX = skView.frame.maxX
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            // On iPad the game fills the screen; place buttons closer to the edges
+            // so they are not centered in the right half.
+            let positionCoef: CGFloat = 0.25
+            controlsView.edgesPositioningXCoef = positionCoef
+        } else {
+            let sidebarWidth = skView.frame.minX
+            if sidebarWidth >= minSidebarWidth {
+                controlsView.rightZoneMinX = skView.frame.maxX
+            }
         }
     }
 
