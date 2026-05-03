@@ -120,7 +120,18 @@ final class MainMenuViewController: UIViewController {
             self.onlineButton.setTitle("🌐  Play Online", for: .normal)
 
             if success {
-                self.push(bridge: bridge)
+                let connectionVC = ConnectionStateViewController(bridge: bridge)
+                connectionVC.modalPresentationStyle = .overFullScreen
+                
+                connectionVC.onGameReady = { [weak self, weak connectionVC] in
+                    connectionVC?.dismiss(animated: true) {
+                        let gameVC = GameViewController(bridge: bridge)
+                        gameVC.modalPresentationStyle = .fullScreen
+                        self?.present(gameVC, animated: true)
+                    }
+                }
+                
+                self.present(connectionVC, animated: false)
             } else {
                 let msg = error ?? "Unknown error"
                 let alert = UIAlertController(

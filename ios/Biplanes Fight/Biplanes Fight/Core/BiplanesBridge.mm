@@ -151,6 +151,8 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
     CADisplayLink* _displayLink;
     double _accumMs;
     std::chrono::steady_clock::time_point _lastTime;
+    
+    GameConnectionState _connectionState;
 }
 @end
 
@@ -177,6 +179,7 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
         _latestState = [BiplanesBridgeState new];
         _accumMs = 0.0;
         _networkRunning = false;
+        _connectionState = GameConnectionStateConnecting;
     }
     return self;
 }
@@ -217,6 +220,11 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
 {
     std::lock_guard<std::mutex> lock(_stateMutex);
     return _latestState;
+}
+
+- (GameConnectionState)connectionState
+{
+    return _connectionState;
 }
 
 - (void)startOfflineMode
@@ -282,6 +290,8 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
              completion:(void (^)(BOOL, NSString* _Nullable))completion
 {
     _isOffline = NO;
+    _connectionState = GameConnectionStateConnecting;
+    
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
       int fd = connectTCP(host.UTF8String, port);
       if (fd < 0)
@@ -342,6 +352,7 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
         self->_displayLink = [CADisplayLink displayLinkWithTarget:self
                                                          selector:@selector(_onlineTick:)];
         [self->_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+        self->_connectionState = GameConnectionStateWaitingForPlayers;
         completion(YES, nil);
       });
     });
@@ -396,6 +407,8 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
                     std::lock_guard<std::mutex> lock(_stateMutex);
                     _latestState = state;
                 }
+                
+                _connectionState = GameConnectionStateRunning;
             }
             catch (...)
             {}

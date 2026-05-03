@@ -56,6 +56,13 @@
 /*
  * BiplanesBridge — the single gateway between C++ and Swift.
  */
+
+typedef NS_ENUM(NSInteger, GameConnectionState) {
+    GameConnectionStateConnecting = 0,
+    GameConnectionStateWaitingForPlayers = 1,
+    GameConnectionStateRunning = 2,
+};
+
 @interface BiplanesBridge : NSObject
 
 // Assigned player slot: 0 = Blue, 1 = Red.
@@ -67,10 +74,14 @@
 /// YES when running without a server.
 @property (readonly) BOOL isOffline;
 
+// Current connection state for online mode.
+@property (readonly) GameConnectionState connectionState;
+
 // Start a local game vs bot immediately.
 - (void)startOfflineMode;
 
-// Connect to server. Completion is called on main thread with success/error.
+// Connect to server. StateCallback is called on main thread when connection state changes.
+// Completion is called on main thread with success/error only for initial connection failures.
 - (void)startOnlineMode:(NSString*)host
                    port:(uint16_t)port
              completion:(void (^)(BOOL success, NSString* _Nullable error))completion;
