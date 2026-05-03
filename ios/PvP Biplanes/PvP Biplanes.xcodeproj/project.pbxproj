@@ -29,7 +29,7 @@
 		DEAD0001DEAD0001DEAD0001 /* Exceptions for "PvP Biplanes" folder in "PvP Biplanes" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Info.plist,
+				Resources/Info.plist,
 			);
 			target = CC6ECCF22F9D78DF008F2866 /* PvP Biplanes */;
 		};
@@ -210,7 +210,7 @@
 					"$(SRCROOT)/../../",
 					"$(SRCROOT)/../../build_ios/_deps/nlohmann_json-src/include",
 				);
-				INFOPLIST_FILE = "$(SRCROOT)/PvP Biplanes/Info.plist";
+				INFOPLIST_FILE = "$(SRCROOT)/PvP Biplanes/Resources/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "PvP Biplanes";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -246,7 +246,7 @@
 					"$(SRCROOT)/../../",
 					"$(SRCROOT)/../../build_ios/_deps/nlohmann_json-src/include",
 				);
-				INFOPLIST_FILE = "$(SRCROOT)/PvP Biplanes/Info.plist";
+				INFOPLIST_FILE = "$(SRCROOT)/PvP Biplanes/Resources/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "PvP Biplanes";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = (

@@ -1,16 +1,9 @@
-//
-//  SceneDelegate.swift
-//  PvP Biplanes
-//
-//  Created by Влад Ярещенко on 4/26/26.
-//
-
 import UIKit
 
+// TODO: Do we still need this?
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     var window: UIWindow?
-
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let windowScene = (scene as? UIWindowScene) else { return }
@@ -18,13 +11,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         win.makeKeyAndVisible()
         window = win
         
-        // Show launch screen first
         let launchVC = LaunchViewController()
         win.rootViewController = launchVC
         
-        // Transition to MenuViewController after delay
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            let menuVC = MenuViewController()
+            let menuVC = MainMenuViewController()
             
             UIView.transition(with: win, duration: 0.5, options: .transitionCrossDissolve, animations: {
                 win.rootViewController = menuVC
@@ -59,7 +50,5 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // Use this method to save data, release shared resources, and store enough scene-specific state information
         // to restore the scene back to its current state.
     }
-
-
 }
 

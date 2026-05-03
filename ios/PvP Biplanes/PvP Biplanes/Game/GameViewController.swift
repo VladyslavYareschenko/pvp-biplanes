@@ -1,11 +1,14 @@
-import UIKit
 import SpriteKit
+import UIKit
 
-/// Hosts the SpriteKit view, owns the bridge, and manages app lifecycle events.
+/*
+ * Hosts the SpriteKit view, owns the bridge, and manages app lifecycle events.
+ */
 final class GameViewController: UIViewController {
 
     // Game area is 4:3; sidebars host the controls.
     private let gameAspect: CGFloat = 4.0 / 3.0
+
     // Minimum sidebar width required to use sidebar layout for controls.
     private let minSidebarWidth: CGFloat = 80
 
@@ -21,8 +24,6 @@ final class GameViewController: UIViewController {
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
-    // ── Lifecycle ──────────────────────────────────────────────────────────
-
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -32,16 +33,14 @@ final class GameViewController: UIViewController {
         let bgIndex = Int.random(in: 1...3)
         let bgImage = UIImage(named: "backround_\(bgIndex)")
 
-        // ── SKView ─────────────────────────────────────────────────────────
         skView = SKView()
         skView.translatesAutoresizingMaskIntoConstraints = false
         skView.ignoresSiblingOrder = true
-        skView.showsFPS       = false
+        skView.showsFPS = false
         skView.showsNodeCount = false
         view.addSubview(skView)
 
         if isIPad {
-            // iPad: fill entire screen, overlay controls handle input.
             NSLayoutConstraint.activate([
                 skView.topAnchor.constraint(equalTo: view.topAnchor),
                 skView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
@@ -49,17 +48,18 @@ final class GameViewController: UIViewController {
                 skView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             ])
         } else {
-            // iPhone: sidebar panels + centered 4:3 game area.
-
-            // Pre-blur the background image with Core Image for the sidebar effect.
             func blurred(_ image: UIImage?, radius: CGFloat) -> UIImage? {
-                guard let img = image, let ci = CIImage(image: img) else { return image }
+                guard let img = image, let ci = CIImage(image: img) else {
+                    return image
+                }
                 let filter = CIFilter(name: "CIGaussianBlur")
                 filter?.setValue(ci, forKey: kCIInputImageKey)
                 filter?.setValue(radius, forKey: kCIInputRadiusKey)
                 guard let output = filter?.outputImage else { return image }
                 let ctx = CIContext()
-                guard let cg = ctx.createCGImage(output, from: ci.extent) else { return image }
+                guard let cg = ctx.createCGImage(output, from: ci.extent) else {
+                    return image
+                }
                 return UIImage(cgImage: cg)
             }
 
@@ -70,33 +70,43 @@ final class GameViewController: UIViewController {
                 container.clipsToBounds = true
                 container.translatesAutoresizingMaskIntoConstraints = false
 
-                // Zoomed + pre-blurred background image
                 let imgView = UIImageView(image: blurredBg)
                 imgView.contentMode = .scaleAspectFill
                 imgView.translatesAutoresizingMaskIntoConstraints = false
                 container.addSubview(imgView)
                 NSLayoutConstraint.activate([
                     imgView.topAnchor.constraint(equalTo: container.topAnchor),
-                    imgView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-                    imgView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-                    imgView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+                    imgView.bottomAnchor.constraint(
+                        equalTo: container.bottomAnchor
+                    ),
+                    imgView.leadingAnchor.constraint(
+                        equalTo: container.leadingAnchor
+                    ),
+                    imgView.trailingAnchor.constraint(
+                        equalTo: container.trailingAnchor
+                    ),
                 ])
 
-                // Subtle dark overlay for readability
                 let overlay = UIView()
                 overlay.backgroundColor = UIColor(white: 0, alpha: 0.35)
                 overlay.translatesAutoresizingMaskIntoConstraints = false
                 container.addSubview(overlay)
                 NSLayoutConstraint.activate([
                     overlay.topAnchor.constraint(equalTo: container.topAnchor),
-                    overlay.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-                    overlay.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-                    overlay.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+                    overlay.bottomAnchor.constraint(
+                        equalTo: container.bottomAnchor
+                    ),
+                    overlay.leadingAnchor.constraint(
+                        equalTo: container.leadingAnchor
+                    ),
+                    overlay.trailingAnchor.constraint(
+                        equalTo: container.trailingAnchor
+                    ),
                 ])
                 return container
             }
 
-            let leftPanel  = makeBlurredPanel()
+            let leftPanel = makeBlurredPanel()
             let rightPanel = makeBlurredPanel()
             view.addSubview(leftPanel)
             view.addSubview(rightPanel)
@@ -105,17 +115,26 @@ final class GameViewController: UIViewController {
                 skView.topAnchor.constraint(equalTo: view.topAnchor),
                 skView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
                 skView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-                skView.widthAnchor.constraint(equalTo: skView.heightAnchor, multiplier: gameAspect),
+                skView.widthAnchor.constraint(
+                    equalTo: skView.heightAnchor,
+                    multiplier: gameAspect
+                ),
 
                 leftPanel.topAnchor.constraint(equalTo: view.topAnchor),
                 leftPanel.bottomAnchor.constraint(equalTo: view.bottomAnchor),
                 leftPanel.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-                leftPanel.trailingAnchor.constraint(equalTo: skView.leadingAnchor),
+                leftPanel.trailingAnchor.constraint(
+                    equalTo: skView.leadingAnchor
+                ),
 
                 rightPanel.topAnchor.constraint(equalTo: view.topAnchor),
                 rightPanel.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-                rightPanel.leadingAnchor.constraint(equalTo: skView.trailingAnchor),
-                rightPanel.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+                rightPanel.leadingAnchor.constraint(
+                    equalTo: skView.trailingAnchor
+                ),
+                rightPanel.trailingAnchor.constraint(
+                    equalTo: view.trailingAnchor
+                ),
             ])
         }
 
@@ -124,15 +143,22 @@ final class GameViewController: UIViewController {
         let sceneH = min(screen.width, screen.height)
         if isIPad {
             let sceneW = max(screen.width, screen.height)
-            scene = GameScene(bridge: bridge, size: CGSize(width: sceneW, height: sceneH), bgIndex: bgIndex)
+            scene = GameScene(
+                bridge: bridge,
+                size: CGSize(width: sceneW, height: sceneH),
+                bgIndex: bgIndex
+            )
             scene.scaleMode = .resizeFill
         } else {
-            scene = GameScene(bridge: bridge, size: CGSize(width: sceneH * gameAspect, height: sceneH), bgIndex: bgIndex)
+            scene = GameScene(
+                bridge: bridge,
+                size: CGSize(width: sceneH * gameAspect, height: sceneH),
+                bgIndex: bgIndex
+            )
             scene.scaleMode = .aspectFit
         }
         skView.presentScene(scene)
 
-        // ── Controls overlay (full-screen, transparent) ───────────────────
         controlsView = TouchControlsView(bridge: bridge)
         controlsView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(controlsView)
@@ -140,20 +166,31 @@ final class GameViewController: UIViewController {
             controlsView.topAnchor.constraint(equalTo: view.topAnchor),
             controlsView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             controlsView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            controlsView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            controlsView.trailingAnchor.constraint(
+                equalTo: view.trailingAnchor
+            ),
         ])
 
-        // ── Back button ────────────────────────────────────────────────────
         let backBtn = UIButton(type: .system)
         backBtn.setTitle("✕", for: .normal)
         backBtn.titleLabel?.font = .boldSystemFont(ofSize: 18)
-        backBtn.setTitleColor(UIColor.white.withAlphaComponent(0.7), for: .normal)
+        backBtn.setTitleColor(
+            UIColor.white.withAlphaComponent(0.7),
+            for: .normal
+        )
         backBtn.translatesAutoresizingMaskIntoConstraints = false
-        backBtn.addTarget(self, action: #selector(didTapBack), for: .touchUpInside)
+        backBtn.addTarget(
+            self,
+            action: #selector(didTapBack),
+            for: .touchUpInside
+        )
         view.addSubview(backBtn)
         NSLayoutConstraint.activate([
             backBtn.topAnchor.constraint(equalTo: view.topAnchor, constant: 12),
-            backBtn.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
+            backBtn.trailingAnchor.constraint(
+                equalTo: view.trailingAnchor,
+                constant: -12
+            ),
         ])
     }
 
@@ -162,8 +199,6 @@ final class GameViewController: UIViewController {
         guard UIDevice.current.userInterfaceIdiom != .pad else { return }
         let sidebarWidth = skView.frame.minX
         if sidebarWidth >= minSidebarWidth {
-            // Joystick: full left half (including game area) — leftZoneMaxX stays 0 → fallback
-            // Buttons: anchored in right sidebar panel
             controlsView.rightZoneMinX = skView.frame.maxX
         }
     }
@@ -173,9 +208,13 @@ final class GameViewController: UIViewController {
         bridge.stop()
     }
 
-    override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
+        .landscape
+    }
     override var prefersStatusBarHidden: Bool { true }
-    override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge { .all }
+    override var preferredScreenEdgesDeferringSystemGestures: UIRectEdge {
+        .all
+    }
 
     @objc private func didTapBack() {
         bridge.stop()
