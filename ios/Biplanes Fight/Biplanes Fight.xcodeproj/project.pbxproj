@@ -21,27 +21,27 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		CC6ECCF32F9D78DF008F2866 /* PvP Biplanes.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "PvP Biplanes.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		CC6ECCF32F9D78DF008F2866 /* Biplanes Fight.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Biplanes Fight.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		DEAD0002DEAD0002DEAD0002 /* biplanes_core.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = biplanes_core.xcframework; path = ../../build_ios/biplanes_core.xcframework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		DEAD0001DEAD0001DEAD0001 /* Exceptions for "PvP Biplanes" folder in "PvP Biplanes" target */ = {
+		DEAD0001DEAD0001DEAD0001 /* Exceptions for "Biplanes Fight" folder in "Biplanes Fight" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Resources/Info.plist,
 			);
-			target = CC6ECCF22F9D78DF008F2866 /* PvP Biplanes */;
+			target = CC6ECCF22F9D78DF008F2866 /* Biplanes Fight */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		CC6ECCF52F9D78DF008F2866 /* PvP Biplanes */ = {
+		CC6ECCF52F9D78DF008F2866 /* Biplanes Fight */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				DEAD0001DEAD0001DEAD0001 /* Exceptions for "PvP Biplanes" folder in "PvP Biplanes" target */,
+				DEAD0001DEAD0001DEAD0001 /* Exceptions for "Biplanes Fight" folder in "Biplanes Fight" target */,
 			);
-			path = "PvP Biplanes";
+			path = "Biplanes Fight";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -61,7 +61,7 @@
 		CC6ECCEA2F9D78DF008F2866 = {
 			isa = PBXGroup;
 			children = (
-				CC6ECCF52F9D78DF008F2866 /* PvP Biplanes */,
+				CC6ECCF52F9D78DF008F2866 /* Biplanes Fight */,
 				DEAD0004DEAD0004DEAD0004 /* Frameworks */,
 				CC6ECCF42F9D78DF008F2866 /* Products */,
 			);
@@ -70,7 +70,7 @@
 		CC6ECCF42F9D78DF008F2866 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				CC6ECCF32F9D78DF008F2866 /* PvP Biplanes.app */,
+				CC6ECCF32F9D78DF008F2866 /* Biplanes Fight.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -105,9 +105,9 @@
 /* End PBXLegacyTarget section */
 
 /* Begin PBXNativeTarget section */
-		CC6ECCF22F9D78DF008F2866 /* PvP Biplanes */ = {
+		CC6ECCF22F9D78DF008F2866 /* Biplanes Fight */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = CC6ECD062F9D78E2008F2866 /* Build configuration list for PBXNativeTarget "PvP Biplanes" */;
+			buildConfigurationList = CC6ECD062F9D78E2008F2866 /* Build configuration list for PBXNativeTarget "Biplanes Fight" */;
 			buildPhases = (
 				CC6ECCEF2F9D78DF008F2866 /* Sources */,
 				CC6ECCF02F9D78DF008F2866 /* Frameworks */,
@@ -119,13 +119,13 @@
 				CC6ECD212F9D7AA2008F2866 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				CC6ECCF52F9D78DF008F2866 /* PvP Biplanes */,
+				CC6ECCF52F9D78DF008F2866 /* Biplanes Fight */,
 			);
-			name = "PvP Biplanes";
+			name = "Biplanes Fight";
 			packageProductDependencies = (
 			);
 			productName = "PvP Biplanes";
-			productReference = CC6ECCF32F9D78DF008F2866 /* PvP Biplanes.app */;
+			productReference = CC6ECCF32F9D78DF008F2866 /* Biplanes Fight.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -147,7 +147,7 @@
 					};
 				};
 			};
-			buildConfigurationList = CC6ECCEE2F9D78DF008F2866 /* Build configuration list for PBXProject "PvP Biplanes" */;
+			buildConfigurationList = CC6ECCEE2F9D78DF008F2866 /* Build configuration list for PBXProject "Biplanes Fight" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -161,7 +161,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				CC6ECCF22F9D78DF008F2866 /* PvP Biplanes */,
+				CC6ECCF22F9D78DF008F2866 /* Biplanes Fight */,
 				CC6ECD1C2F9D7A68008F2866 /* CoreLibs */,
 			);
 		};
@@ -210,21 +210,21 @@
 					"$(SRCROOT)/../../",
 					"$(SRCROOT)/../../build_ios/_deps/nlohmann_json-src/include",
 				);
-				INFOPLIST_FILE = "$(SRCROOT)/PvP Biplanes/Resources/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "PvP Biplanes";
+				INFOPLIST_FILE = "$(SRCROOT)/Biplanes Fight/Resources/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Biplanes Fight";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.pvp-biplanes-ios.PvP-Biplanes";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.pvp-biplanes-ios.Biplanes-Fight";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "PvP Biplanes/PvP Biplanes-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "Biplanes FIght/Biplanes-Fight-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
@@ -246,21 +246,21 @@
 					"$(SRCROOT)/../../",
 					"$(SRCROOT)/../../build_ios/_deps/nlohmann_json-src/include",
 				);
-				INFOPLIST_FILE = "$(SRCROOT)/PvP Biplanes/Resources/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "PvP Biplanes";
+				INFOPLIST_FILE = "$(SRCROOT)/Biplanes Fight/Resources/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Biplanes Fight";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.pvp-biplanes-ios.PvP-Biplanes";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.pvp-biplanes-ios.Biplanes-Fight";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "PvP Biplanes/PvP Biplanes-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "Biplanes FIght/Biplanes-Fight-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -414,7 +414,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		CC6ECCEE2F9D78DF008F2866 /* Build configuration list for PBXProject "PvP Biplanes" */ = {
+		CC6ECCEE2F9D78DF008F2866 /* Build configuration list for PBXProject "Biplanes Fight" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				CC6ECD092F9D78E2008F2866 /* Debug */,
@@ -423,7 +423,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		CC6ECD062F9D78E2008F2866 /* Build configuration list for PBXNativeTarget "PvP Biplanes" */ = {
+		CC6ECD062F9D78E2008F2866 /* Build configuration list for PBXNativeTarget "Biplanes Fight" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				CC6ECD072F9D78E2008F2866 /* Debug */,

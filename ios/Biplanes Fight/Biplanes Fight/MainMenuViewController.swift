@@ -26,7 +26,7 @@ final class MainMenuViewController: UIViewController {
     override var prefersStatusBarHidden: Bool { true }
 
     private func buildUI() {
-        titleLabel.text = "PvP Biplanes"
+        titleLabel.text = "Biplanes Fight"
         titleLabel.font = .boldSystemFont(ofSize: 36)
         titleLabel.textColor = .white
         titleLabel.textAlignment = .center
