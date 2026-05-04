@@ -89,6 +89,35 @@ Plane& Plane::operator=(Plane&& o) noexcept
 }
 
 
+// ---- Client-side prediction state restore ----------------------------------
+
+void Plane::setPredictionState(float x, float y, float dir, float speed,
+                                float speedVecX, float speedVecY,
+                                bool isDead, bool isOnGround,
+                                bool isTakingOff, bool hasJumped,
+                                uint8_t hp, float deadCooldownRemaining,
+                                float protectionRemaining)
+{
+    mX = x;  mY = y;  mDir = dir;  mSpeed = speed;
+    mSpeedVec = {speedVecX, speedVecY};
+    mIsDead      = isDead;
+    mIsOnGround  = isOnGround;
+    mIsTakingOff = isTakingOff;
+    mHasJumped   = hasJumped;
+    mHp          = hp;
+    if (deadCooldownRemaining > 0.f) {
+        mDeadCooldown.SetNewRemainder(deadCooldownRemaining);
+    } else {
+        mDeadCooldown.Reset();
+    }
+    if (protectionRemaining > 0.f) {
+        mProtection.SetNewRemainder(protectionRemaining);
+    } else {
+        mProtection.Reset();
+    }
+}
+
+
 // ---- Public input actions --------------------------------------------------
 
 void Plane::Accelerate(float dt)

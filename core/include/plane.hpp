@@ -109,6 +109,15 @@ public:
     uint8_t smokeFrame() const { return mSmokeFrame; }
     int8_t  fireFrame()  const { return mFireFrame;  }
 
+    // ---- Client-side prediction setters (prediction/reconciliation only) ----
+    // These bypass normal physics and should only be called during reconciliation.
+    void setPredictionState(float x, float y, float dir, float speed,
+                            float speedVecX, float speedVecY,
+                            bool isDead, bool isOnGround,
+                            bool isTakingOff, bool hasJumped,
+                            uint8_t hp, float deadCooldownRemaining,
+                            float protectionRemaining);
+
 
     // ---- Pilot inner class ----
     class Pilot

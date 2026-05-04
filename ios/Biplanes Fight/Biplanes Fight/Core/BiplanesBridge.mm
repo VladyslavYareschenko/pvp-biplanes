@@ -2,7 +2,11 @@
 
 #include "core/include/world.hpp"
 #include "core/include/bot.hpp"
+#include "core/include/constants.hpp"
 #include "common/include/protocol.hpp"
+#include "common/include/interpolator.hpp"
+#include "common/include/logger.hpp"
+#include "common/include/predictor.hpp"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -12,6 +16,7 @@
 #include <unistd.h>
 
 #include <atomic>
+#include <memory>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -148,6 +153,21 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
     std::atomic<bool> _networkRunning;
     std::thread _networkThread;
 
+    // Snapshot interpolation + client-side prediction
+    SnapshotInterpolator        _interp;
+    ClientPredictor             _predictor;
+    std::mutex                  _interpMutex;   // guards _interp and _predictor (network thread writes)
+    double                      _renderDelayMs; // 3 × snapshot interval
+    std::atomic<uint64_t>       _predTick;   // local prediction tick counter (reset per session; atomic for network-thread read)
+    uint64_t                    _lastReconciledSnapTick; // most recent snap tick reconciled on the main thread
+
+    // Wall-clock origin for interpolator timestamps
+    std::chrono::steady_clock::time_point _interpOrigin;
+
+    // Client diagnostic logger (created on connect, null offline)
+    std::unique_ptr<ClientLogger> _logger;
+    uint64_t                      _renderFrameN; // frame counter for render log throttle
+
     CADisplayLink* _displayLink;
     double _accumMs;
     std::chrono::steady_clock::time_point _lastTime;
@@ -178,8 +198,13 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
         _isOffline = NO;
         _latestState = [BiplanesBridgeState new];
         _accumMs = 0.0;
+        _predTick = 0;
+        _lastReconciledSnapTick = 0;
+        _renderFrameN = 0;
         _networkRunning = false;
         _connectionState = GameConnectionStateConnecting;
+        _renderDelayMs = 3.0 * (1000.0 / constants::snapshotRate);
+        _interpOrigin = std::chrono::steady_clock::now();
     }
     return self;
 }
@@ -239,6 +264,13 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
     _accumMs = 0.0;
 
     _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(_offlineTick:)];
+    // Same minimum-60Hz constraint as the online display link — prevents ProMotion
+    // from stalling the offline game loop on iPhone 15/16 Pro.
+    if (@available(iOS 15.0, *)) {
+        _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(60, 60, 60);
+    } else {
+        _displayLink.preferredFramesPerSecond = 60;
+    }
     [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 }
 
@@ -345,12 +377,39 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
       self->_isConnected = YES;
       self->_networkRunning = true;
 
+      // Reset smoothing state and prediction tick for the new session.
+      {
+          std::lock_guard<std::mutex> lk(self->_interpMutex);
+          self->_interp    = SnapshotInterpolator{};
+          self->_predictor = ClientPredictor{assignedId};
+          self->_interpOrigin = std::chrono::steady_clock::now();
+          self->_predTick  = 0;
+          self->_lastReconciledSnapTick = 0;
+      }
+      self->_renderFrameN = 0;
+
+      // Open diagnostic log in the app's Documents directory.
+      NSArray<NSString*>* docs = NSSearchPathForDirectoriesInDomains(
+          NSDocumentDirectory, NSUserDomainMask, YES);
+      NSString* logDir  = docs.firstObject ?: NSTemporaryDirectory();
+      NSString* logPath = [logDir stringByAppendingPathComponent:@"biplanes_client.log"];
+      self->_logger = std::make_unique<ClientLogger>(logPath.UTF8String);
+
       self->_networkThread = std::thread([self]() { [self _networkLoop]; });
 
       dispatch_async(dispatch_get_main_queue(), ^{
         self->_lastTime = std::chrono::steady_clock::now();
         self->_displayLink = [CADisplayLink displayLinkWithTarget:self
                                                          selector:@selector(_onlineTick:)];
+        // Require minimum 60 Hz so ProMotion can't drop the display link below
+        // 60 Hz (which would pause _onlineTick: for 66–366 ms and cause the
+        // local plane to teleport on resume).  Allowing up to 120 Hz preserves
+        // full ProMotion quality on iPhone 15/16 Pro.
+        if (@available(iOS 15.0, *)) {
+            self->_displayLink.preferredFrameRateRange = CAFrameRateRangeMake(60, 120, 120);
+        } else {
+            self->_displayLink.preferredFramesPerSecond = 60;
+        }
         [self->_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
         self->_connectionState = GameConnectionStateWaitingForPlayers;
         completion(YES, nil);
@@ -360,8 +419,8 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
 
 - (void)_networkLoop
 {
-    uint64_t inputTick = 0;
     using Clk = std::chrono::steady_clock;
+    using FpMs = std::chrono::duration<double, std::milli>;
     auto lastSend = Clk::now();
     const auto SEND_INTERVAL = std::chrono::milliseconds(16);  // ~60Hz
 
@@ -372,7 +431,7 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
         if (now - lastSend >= SEND_INTERVAL)
         {
             InputMessage msg;
-            msg.tick = ++inputTick;
+            msg.tick = _predTick.load();  // use prediction tick so server acks match history
             msg.throttle = static_cast<PlaneThrottle>(_throttle.load());
             msg.pitch = static_cast<PlanePitch>(_pitch.load());
             msg.shoot = _shoot.load();
@@ -386,6 +445,21 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
                 _networkRunning = false;
                 break;
             }
+
+            // Log the sent input.
+            if (_logger)
+            {
+                PlayerInput pi{};
+                pi.throttle           = msg.throttle;
+                pi.pitch              = msg.pitch;
+                pi.shoot              = msg.shoot;
+                pi.jump               = msg.jump;
+                pi.joystick.active    = msg.jsActive;
+                pi.joystick.angle     = msg.jsAngle;
+                pi.joystick.magnitude = msg.jsMag;
+                _logger->logInput(msg.tick, pi);
+            }
+
             lastSend = now;
         }
 
@@ -401,14 +475,47 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
         {
             try
             {
-                GameSnapshot snap = GameSnapshot::fromJson(json);
-                BiplanesBridgeState* state = buildState(snap);
+                auto j = nlohmann::json::parse(json);
+                const std::string type = j.value("type", std::string{});
+
+                GameSnapshot snap;
+                bool valid = false;
+
+                if (type == "state")
                 {
-                    std::lock_guard<std::mutex> lock(_stateMutex);
-                    _latestState = state;
+                    snap  = GameSnapshot::fromJson(json);
+                    valid = true;
                 }
-                
-                _connectionState = GameConnectionStateRunning;
+                else if (type == "delta")
+                {
+                    std::lock_guard<std::mutex> lk(_interpMutex);
+                    const GameSnapshot* base = _interp.latest();
+                    if (base)
+                    {
+                        snap  = GameDeltaSnapshot::fromJson(json).apply(*base);
+
+                        if (_logger) _logger->logSnapshot("delta", snap);
+
+                        double recvMs = std::chrono::duration_cast<FpMs>(
+                            Clk::now() - _interpOrigin).count();
+                        _interp.push(snap, recvMs);
+                    }
+                    _connectionState = GameConnectionStateRunning;
+                    continue;  // already handled under lock
+                }
+
+                if (valid)
+                {
+                    if (_logger) _logger->logSnapshot("state", snap);
+
+                    double recvMs = std::chrono::duration_cast<FpMs>(
+                        Clk::now() - _interpOrigin).count();
+                    {
+                        std::lock_guard<std::mutex> lk(_interpMutex);
+                        _interp.push(snap, recvMs);
+                    }
+                    _connectionState = GameConnectionStateRunning;
+                }
             }
             catch (...)
             {}
@@ -427,7 +534,107 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
 
 - (void)_onlineTick:(CADisplayLink*)link
 {
-    (void)link;
+    using Clk  = std::chrono::steady_clock;
+    using FpMs = std::chrono::duration<double, std::milli>;
+
+    auto now = Clk::now();
+    double frameMs = std::chrono::duration_cast<FpMs>(now - _lastTime).count();
+    _lastTime = now;
+
+    // Collect current input snapshot.
+    PlayerInput input{};
+    input.throttle         = static_cast<PlaneThrottle>(_throttle.load());
+    input.pitch            = static_cast<PlanePitch>(_pitch.load());
+    input.shoot            = _shoot.load();
+    input.jump             = _jump.load();
+    input.joystick.angle   = _jsAngle.load();
+    input.joystick.magnitude = _jsMag.load();
+    input.joystick.active  = _jsActive.load();
+
+    // Advance prediction world at 120 Hz (same rate as server).
+    // Cap to 3 ticks per call to prevent large catch-up bursts when the main
+    // thread is stalled (e.g. Swift UI work). Bursting 12 ticks at once after a
+    // stall places the plane 12 ticks ahead, which snaps back visibly on the
+    // next reconcile. At 60 fps we normally apply exactly 2 ticks per frame;
+    // allowing 3 absorbs mild timing jitter without permitting large overshoots.
+    const double TICK_MS = GameWorld::TICK_DT * 1000.0;
+    // Clamp the raw elapsed time before accumulating ticks.  CAFrameRateRange
+    // with minimum=60 Hz should prevent long pauses on ProMotion devices, but
+    // as a safety net we cap frameMs to 2.5 ticks (~20 ms).  Any genuine stall
+    // longer than that would cause a large catch-up burst which snaps visibly.
+    if (frameMs > TICK_MS * 2.5) frameMs = TICK_MS * 2.5;
+    _accumMs += frameMs;
+    if (_accumMs > TICK_MS * 3.0) _accumMs = TICK_MS * 3.0;
+
+    {
+        std::lock_guard<std::mutex> lk(_interpMutex);
+
+        // Blend out any pending visual correction from previous reconciles.
+        // Must happen before reconcile so this frame's blend step is applied
+        // before a new correction is (potentially) added.
+        _predictor.blendStep(frameMs);
+
+        // Reconcile once per frame with the newest server snapshot available.
+        // Doing this on the main thread (rather than from the network thread
+        // every time a packet arrives) prevents snapshot bursts from triggering
+        // multiple sequential reconcile calls in the same render frame, which
+        // would cumulatively push the prediction far forward and then snap back.
+        if (const GameSnapshot* latest = _interp.latest())
+        {
+            if (latest->tick > _lastReconciledSnapTick)
+            {
+                const PlaneSnapshot prePhys = _predictor.physicsLocalPlane();
+                _predictor.reconcile(*latest);
+                const PlaneSnapshot postPhys = _predictor.physicsLocalPlane();
+                if (_logger) _logger->logReconcile(
+                    latest->tick, latest->lastAckedInputTick[_playerId],
+                    _predictor.historySize(),
+                    prePhys.x, prePhys.y,
+                    postPhys.x, postPhys.y,
+                    latest->planes[_playerId].x, latest->planes[_playerId].y);
+                _lastReconciledSnapTick = latest->tick;
+            }
+        }
+
+        while (_accumMs >= TICK_MS)
+        {
+            _predictor.applyInput(++_predTick, input);
+            _accumMs -= TICK_MS;
+        }
+    }
+
+    // Build render state: local plane from prediction, remote from interpolator.
+    double nowMs = std::chrono::duration_cast<FpMs>(now - _interpOrigin).count();
+
+    GameSnapshot render;
+    bool hasData = false;
+    {
+        std::lock_guard<std::mutex> lk(_interpMutex);
+        if (!_interp.empty())
+        {
+            render = _interp.interpolated(nowMs - _renderDelayMs);
+            render.planes[_playerId] = _predictor.localPlane();
+            hasData = true;
+        }
+    }
+
+    if (hasData)
+    {
+        BiplanesBridgeState* state = buildState(render);
+        {
+            std::lock_guard<std::mutex> lock(_stateMutex);
+            _latestState = state;
+        }
+
+        // Log render state every 10 frames (~6/sec at 60 Hz) for flicker diagnosis.
+        ++_renderFrameN;
+        if (_logger && (_renderFrameN % 10 == 0))
+        {
+            _logger->logRender(_renderFrameN, _playerId,
+                render.planes[_playerId],
+                render.planes[1 - _playerId]);
+        }
+    }
 }
 
 - (void)stop

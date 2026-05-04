@@ -162,6 +162,7 @@ struct BulletSnapshot
 struct GameSnapshot
 {
     uint64_t              tick{};
+    uint64_t              lastAckedInputTick[2]{};  // last InputMessage::tick processed per player
     PlaneSnapshot         planes[2]{};
     std::vector<BulletSnapshot> bullets{};
     bool    roundRunning  {};
@@ -222,6 +223,8 @@ struct GameSnapshot
         nlohmann::json j;
         j["type"]          = "state";
         j["tick"]          = tick;
+        j["ait0"]          = lastAckedInputTick[0];
+        j["ait1"]          = lastAckedInputTick[1];
         j["roundRunning"]  = roundRunning;
         j["roundFinished"] = roundFinished;
         j["winnerId"]      = winnerId;
@@ -272,7 +275,9 @@ struct GameSnapshot
     {
         auto j = nlohmann::json::parse(s);
         GameSnapshot gs;
-        gs.tick          = j.value("tick",          uint64_t{0});
+        gs.tick                   = j.value("tick",          uint64_t{0});
+        gs.lastAckedInputTick[0]  = j.value("ait0",          uint64_t{0});
+        gs.lastAckedInputTick[1]  = j.value("ait1",          uint64_t{0});
         gs.roundRunning  = j.value("roundRunning",  false);
         gs.roundFinished = j.value("roundFinished", false);
         gs.winnerId      = j.value("winnerId",      -1);
@@ -323,5 +328,244 @@ struct GameSnapshot
             }
         }
         return gs;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// Server → Client: incremental delta snapshot
+//
+// Sent instead of a full GameSnapshot when most state is unchanged.
+// Each field that hasn't changed from the previous snapshot is omitted.
+// The client applies the delta on top of its last received full snapshot.
+// ---------------------------------------------------------------------------
+struct GameDeltaSnapshot
+{
+    uint64_t tick{};
+    uint64_t lastAckedInputTick[2]{};
+    bool     roundRunning  {};
+    bool     roundFinished {};
+    int      winnerId      {-1};
+
+    // Per-plane change flags (bit 0 = plane 0, bit 1 = plane 1).
+    uint8_t       planeMask{0};
+    PlaneSnapshot planes[2]{};
+
+    // Bullet list (always included when bulletsChanged; omitted otherwise).
+    bool bulletsChanged{false};
+    std::vector<BulletSnapshot> bullets{};
+
+    static constexpr float POS_EPS   = 1e-5f;
+    static constexpr float SPEED_EPS = 1e-5f;
+
+    // Build a delta relative to a previous full snapshot.
+    // Returns nullopt when absolutely nothing has changed.
+    static std::optional<GameDeltaSnapshot> compute(
+        const GameSnapshot& prev, const GameSnapshot& curr)
+    {
+        GameDeltaSnapshot d;
+        d.tick                   = curr.tick;
+        d.lastAckedInputTick[0]  = curr.lastAckedInputTick[0];
+        d.lastAckedInputTick[1]  = curr.lastAckedInputTick[1];
+        d.roundRunning           = curr.roundRunning;
+        d.roundFinished          = curr.roundFinished;
+        d.winnerId               = curr.winnerId;
+
+        for (int i = 0; i < 2; ++i)
+        {
+            if (planesDiffer(prev.planes[i], curr.planes[i]))
+            {
+                d.planeMask |= (1 << i);
+                d.planes[i]  = curr.planes[i];
+            }
+        }
+
+        if (bulletsDiffer(prev.bullets, curr.bullets))
+        {
+            d.bulletsChanged = true;
+            d.bullets        = curr.bullets;
+        }
+
+        const bool unchanged =
+            d.planeMask == 0 && !d.bulletsChanged &&
+            prev.roundRunning  == curr.roundRunning  &&
+            prev.roundFinished == curr.roundFinished &&
+            prev.winnerId      == curr.winnerId;
+        if (unchanged) return std::nullopt;
+
+        return d;
+    }
+
+    // Apply this delta on top of a base full snapshot.
+    GameSnapshot apply(const GameSnapshot& base) const
+    {
+        GameSnapshot s = base;
+        s.tick                   = tick;
+        s.lastAckedInputTick[0]  = lastAckedInputTick[0];
+        s.lastAckedInputTick[1]  = lastAckedInputTick[1];
+        s.roundRunning           = roundRunning;
+        s.roundFinished          = roundFinished;
+        s.winnerId               = winnerId;
+        for (int i = 0; i < 2; ++i)
+            if (planeMask & (1 << i)) s.planes[i] = planes[i];
+        if (bulletsChanged) s.bullets = bullets;
+        return s;
+    }
+
+    std::string toJson() const
+    {
+        nlohmann::json j;
+        j["type"]  = "delta";
+        j["tick"]  = tick;
+        j["ait0"]  = lastAckedInputTick[0];
+        j["ait1"]  = lastAckedInputTick[1];
+        j["rr"]    = roundRunning;
+        j["rf"]    = roundFinished;
+        j["win"]   = winnerId;
+        j["pm"]    = planeMask;
+
+        auto serPlane = [](const PlaneSnapshot& p) {
+            nlohmann::json pj;
+            pj["x"] = p.x; pj["y"] = p.y; pj["dir"] = p.dir;
+            pj["speed"] = p.speed;
+            pj["hp"] = p.hp; pj["score"] = p.score;
+            pj["isDead"] = p.isDead; pj["isOnGround"] = p.isOnGround;
+            pj["isTakingOff"] = p.isTakingOff; pj["hasJumped"] = p.hasJumped;
+            pj["deadCR"] = p.deadCooldownRemaining;
+            pj["protR"]  = p.protectionRemaining;
+            pj["smokeFrame"] = p.smokeFrame; pj["fireFrame"] = p.fireFrame;
+            nlohmann::json pt;
+            pt["x"] = p.pilot.x; pt["y"] = p.pilot.y;
+            pt["isDead"] = p.pilot.isDead;
+            pt["chuteOpen"] = p.pilot.isChuteOpen;
+            pt["chuteBroken"] = p.pilot.isChuteBroken;
+            pt["running"] = p.pilot.isRunning;
+            pt["sx"] = p.pilot.speedX; pt["sy"] = p.pilot.speedY;
+            pt["fallFrame"] = p.pilot.fallFrame;
+            pt["runFrame"]  = p.pilot.runFrame;
+            pt["angelFrame"]= p.pilot.angelFrame;
+            pt["dir"] = p.pilot.dir; pt["chuteState"] = p.pilot.chuteState;
+            pj["pilot"] = pt;
+            return pj;
+        };
+
+        j["planes"] = nlohmann::json::array();
+        for (int i = 0; i < 2; ++i)
+        {
+            if (planeMask & (1 << i))
+                j["planes"].push_back(serPlane(planes[i]));
+            else
+                j["planes"].push_back(nullptr);
+        }
+
+        if (bulletsChanged)
+        {
+            j["bullets"] = nlohmann::json::array();
+            for (const auto& b : bullets)
+            {
+                nlohmann::json bj;
+                bj["x"] = b.x; bj["y"] = b.y;
+                bj["dir"] = b.dir; bj["by"] = b.firedBy;
+                j["bullets"].push_back(bj);
+            }
+        }
+        return j.dump();
+    }
+
+    static GameDeltaSnapshot fromJson(const std::string& s)
+    {
+        auto j = nlohmann::json::parse(s);
+        GameDeltaSnapshot d;
+        d.tick                  = j.value("tick",  uint64_t{0});
+        d.lastAckedInputTick[0] = j.value("ait0",  uint64_t{0});
+        d.lastAckedInputTick[1] = j.value("ait1",  uint64_t{0});
+        d.roundRunning          = j.value("rr",    false);
+        d.roundFinished         = j.value("rf",    false);
+        d.winnerId              = j.value("win",   -1);
+        d.planeMask             = j.value("pm",    uint8_t{0});
+
+        auto desPlane = [](const nlohmann::json& pj, PlaneSnapshot& p) {
+            p.x    = pj.value("x",    0.f); p.y   = pj.value("y",   0.f);
+            p.dir  = pj.value("dir",  0.f); p.speed = pj.value("speed", 0.f);
+            p.hp   = pj.value("hp",   uint8_t{0}); p.score = pj.value("score", uint8_t{0});
+            p.isDead      = pj.value("isDead",      false);
+            p.isOnGround  = pj.value("isOnGround",  false);
+            p.isTakingOff = pj.value("isTakingOff", false);
+            p.hasJumped   = pj.value("hasJumped",   false);
+            p.deadCooldownRemaining = pj.value("deadCR", 0.f);
+            p.protectionRemaining   = pj.value("protR",  0.f);
+            p.smokeFrame = pj.value("smokeFrame", uint8_t{0});
+            p.fireFrame  = pj.value("fireFrame",  int8_t{0});
+            if (pj.contains("pilot")) {
+                const auto& pt = pj["pilot"];
+                p.pilot.x          = pt.value("x",          0.f);
+                p.pilot.y          = pt.value("y",          0.f);
+                p.pilot.isDead     = pt.value("isDead",     false);
+                p.pilot.isChuteOpen= pt.value("chuteOpen",  false);
+                p.pilot.isChuteBroken=pt.value("chuteBroken",false);
+                p.pilot.isRunning  = pt.value("running",    false);
+                p.pilot.speedX     = pt.value("sx",         0.f);
+                p.pilot.speedY     = pt.value("sy",         0.f);
+                p.pilot.fallFrame  = pt.value("fallFrame",  int8_t{0});
+                p.pilot.runFrame   = pt.value("runFrame",   uint8_t{0});
+                p.pilot.angelFrame = pt.value("angelFrame", int8_t{0});
+                p.pilot.dir        = pt.value("dir",        int16_t{0});
+                p.pilot.chuteState = pt.value("chuteState", uint8_t{0});
+            }
+        };
+
+        if (j.contains("planes") && j["planes"].is_array())
+        {
+            for (int i = 0; i < 2 && i < (int)j["planes"].size(); ++i)
+            {
+                if ((d.planeMask & (1 << i)) && !j["planes"][i].is_null())
+                    desPlane(j["planes"][i], d.planes[i]);
+            }
+        }
+
+        if (j.contains("bullets") && j["bullets"].is_array())
+        {
+            d.bulletsChanged = true;
+            for (const auto& bj : j["bullets"])
+            {
+                BulletSnapshot b;
+                b.x       = bj.value("x",   0.f);
+                b.y       = bj.value("y",   0.f);
+                b.dir     = bj.value("dir", 0.f);
+                b.firedBy = bj.value("by",  uint8_t{0});
+                d.bullets.push_back(b);
+            }
+        }
+        return d;
+    }
+
+private:
+    static bool planesDiffer(const PlaneSnapshot& a, const PlaneSnapshot& b)
+    {
+        if (std::abs(a.x - b.x)     > POS_EPS)   return true;
+        if (std::abs(a.y - b.y)     > POS_EPS)   return true;
+        if (std::abs(a.dir - b.dir) > POS_EPS)   return true;
+        if (std::abs(a.speed - b.speed) > SPEED_EPS) return true;
+        if (a.hp != b.hp || a.score != b.score)  return true;
+        if (a.isDead      != b.isDead)      return true;
+        if (a.isOnGround  != b.isOnGround)  return true;
+        if (a.isTakingOff != b.isTakingOff) return true;
+        if (a.hasJumped   != b.hasJumped)   return true;
+        if (std::abs(a.pilot.x - b.pilot.x) > POS_EPS) return true;
+        if (std::abs(a.pilot.y - b.pilot.y) > POS_EPS) return true;
+        if (a.pilot.isDead    != b.pilot.isDead)    return true;
+        if (a.pilot.isRunning != b.pilot.isRunning) return true;
+        return false;
+    }
+
+    static bool bulletsDiffer(const std::vector<BulletSnapshot>& a,
+                               const std::vector<BulletSnapshot>& b)
+    {
+        if (a.size() != b.size()) return true;
+        for (size_t i = 0; i < a.size(); ++i)
+        {
+            if (std::abs(a[i].x - b[i].x) > POS_EPS) return true;
+            if (std::abs(a[i].y - b[i].y) > POS_EPS) return true;
+        }
+        return false;
     }
 };

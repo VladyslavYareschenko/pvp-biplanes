@@ -13,11 +13,12 @@
 #include <chrono>
 #include <cstring>
 #include <iostream>
+#include <optional>
 #include <thread>
 #include <vector>
 
 static constexpr uint16_t PORT         = 55123;
-static constexpr int      SNAPSHOT_DIV = 4;   // send snapshot every N ticks (120/4=30Hz)
+static constexpr int      SNAPSHOT_DIV = 2;   // send snapshot every N ticks (120/2=60Hz)
 
 // ---------------------------------------------------------------------------
 // Non-blocking helpers
@@ -43,6 +44,7 @@ struct Client
     int                  playerId   {-1};
     std::vector<uint8_t> recvBuf    {};
     PlayerInput          lastInput  {};
+    uint64_t             lastAckedInputTick{0};  // most recent InputMessage::tick received
     bool                 ready      {false};   // received at least one input
     bool                 connected  {true};
 };
@@ -127,6 +129,8 @@ static void pumpClient(Client& c, uint64_t serverTick)
             c.lastInput.shoot    = msg.shoot;
             c.lastInput.jump     = msg.jump;
             c.lastInput.joystick = { msg.jsAngle, msg.jsMag, msg.jsActive };
+            if (msg.tick > c.lastAckedInputTick)
+                c.lastAckedInputTick = msg.tick;
             c.ready = true;
         } catch (...) {
             std::cerr << "[server] malformed input from player " << c.playerId << "\n";
@@ -180,6 +184,9 @@ int main()
     auto nextTick = Clock::now();
     uint64_t tickCount = 0;
 
+    // Per-client delta compression: track the last snapshot sent to each client.
+    std::array<std::optional<GameSnapshot>, 2> lastSentSnap{};
+
     while (true) {
         // Sleep until next tick
         auto now = Clock::now();
@@ -204,15 +211,33 @@ int main()
 
         // Send snapshot at reduced rate
         if (tickCount % SNAPSHOT_DIV == 0) {
-            auto snap    = GameSnapshot::fromWorld(world);
-            auto payload = frameMessage(snap.toJson());
+            GameSnapshot snap = GameSnapshot::fromWorld(world);
+            snap.lastAckedInputTick[0] = clients[0].lastAckedInputTick;
+            snap.lastAckedInputTick[1] = clients[1].lastAckedInputTick;
 
-            for (auto& c : clients) {
-                if (c.connected) {
+            for (int i = 0; i < 2; ++i) {
+                auto& c = clients[i];
+                if (!c.connected) continue;
+
+                std::string payload;
+                if (!lastSentSnap[i].has_value()) {
+                    // First snapshot: always send full state so the client
+                    // has a base to apply future deltas against.
+                    payload = frameMessage(snap.toJson());
+                } else {
+                    auto delta = GameDeltaSnapshot::compute(*lastSentSnap[i], snap);
+                    if (delta.has_value())
+                        payload = frameMessage(delta->toJson());
+                    // Nothing changed — skip sending this tick.
+                }
+
+                if (!payload.empty()) {
                     if (!sendAll(c.fd, payload)) {
                         std::cerr << "[server] send failed for player " << c.playerId << "\n";
                         c.connected = false;
+                        continue;
                     }
+                    lastSentSnap[i] = snap;
                 }
             }
         }

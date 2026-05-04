@@ -1,4 +1,7 @@
 #include <common/include/protocol.hpp>
+#include <common/include/interpolator.hpp>
+#include <common/include/logger.hpp>
+#include <common/include/predictor.hpp>
 #include <core/include/bot.hpp>
 #include <core/include/constants.hpp>
 #include <core/include/world.hpp>
@@ -309,7 +312,7 @@ int main(int argc, char* argv[])
     }
 
     // ── Online: wait for welcome message ────────────────────────────────────
-    int playerId = 0;
+    int playerId = -1;
     std::vector<uint8_t> netBuf{};
 
     if (!offline) {
@@ -336,14 +339,31 @@ int main(int argc, char* argv[])
         localWorld.startRound();
     }
 
+    // ── Online smoothing: interpolator + predictor ───────────────────────────
+    SnapshotInterpolator interp{};
+    ClientPredictor      pred{playerId};
+
+    // Render delay: 3 × snapshot interval gives jitter headroom.
+    const double SNAPSHOT_INTERVAL_MS = 1000.0 / constants::snapshotRate;
+    const double RENDER_DELAY_MS      = 3.0 * SNAPSHOT_INTERVAL_MS;
+
+    // ── Client logger (online only) ──────────────────────────────────────────
+    ClientLogger clientLog("./biplanes_client.log");
+
     using Clock    = std::chrono::steady_clock;
     using FpMillis = std::chrono::duration<double, std::milli>;
     const double TICK_MS = GameWorld::TICK_DT * 1000.0;
 
     std::optional<GameSnapshot> latestSnap{};
-    uint64_t inputTick    = 0;
+    std::optional<GameSnapshot> serverSnap{};  // raw server snapshots (delta base only)
+    uint64_t localTick    = 0;
     double   accumMs      = 0.0;
-    auto     lastTime     = Clock::now();
+    auto     startTime    = Clock::now();
+    auto     lastTime     = startTime;
+
+    auto nowMs = [&]() -> double {
+        return std::chrono::duration_cast<FpMillis>(Clock::now() - startTime).count();
+    };
 
     bool running = true;
     while (running) {
@@ -381,9 +401,13 @@ int main(int argc, char* argv[])
             }
             latestSnap = GameSnapshot::fromWorld(localWorld);
         } else {
-            // ── Online: send input, receive snapshot ─────────────────────────
+            // ── Online: send input ───────────────────────────────────────────
+            ++localTick;
+            pred.applyInput(localTick, humanInput);
+            clientLog.logInput(localTick, humanInput);
+
             InputMessage msg{};
-            msg.tick     = ++inputTick;
+            msg.tick     = localTick;
             msg.throttle = humanInput.throttle;
             msg.pitch    = humanInput.pitch;
             msg.shoot    = humanInput.shoot;
@@ -395,6 +419,7 @@ int main(int argc, char* argv[])
                 break;
             }
 
+            // Receive all pending snapshots.
             uint8_t tmp[8192];
             while (true) {
                 ssize_t n = ::recv(serverFd, tmp, sizeof(tmp), 0);
@@ -403,8 +428,62 @@ int main(int argc, char* argv[])
             }
 
             std::string json;
+            std::optional<GameSnapshot> latestReceivedSnap;
             while (!(json = tryReadMessage(netBuf)).empty()) {
-                try { latestSnap = GameSnapshot::fromJson(json); } catch (...) {}
+                try {
+                    auto j = nlohmann::json::parse(json);
+                    GameSnapshot snap;
+                    const std::string type = j.value("type", std::string{});
+                    if (type == "state") {
+                        snap = GameSnapshot::fromJson(json);
+                        serverSnap = snap;
+                    } else if (type == "delta" && serverSnap.has_value()) {
+                        snap = GameDeltaSnapshot::fromJson(json).apply(*serverSnap);
+                        serverSnap = snap;
+                    } else {
+                        continue;
+                    }
+                    clientLog.logSnapshot(type, snap);
+
+                    interp.push(snap, nowMs());
+                    latestSnap = snap;
+                    // Track the newest snapshot for a single post-loop reconcile.
+                    if (!latestReceivedSnap || snap.tick > latestReceivedSnap->tick)
+                        latestReceivedSnap = snap;
+                } catch (...) {}
+            }
+
+            // Blend out visual correction from previous reconcile(s).
+            pred.blendStep(frameMs);
+
+            // Reconcile once with the newest snapshot from this recv burst.
+            // Reconciling on every individual packet in a burst causes cumulative
+            // prediction drift: each reconcile replays the full pending history
+            // from a slightly newer server base, pushing the prediction forward.
+            if (latestReceivedSnap) {
+                const PlaneSnapshot prePhys = pred.physicsLocalPlane();
+                pred.reconcile(*latestReceivedSnap);
+                const PlaneSnapshot postPhys = pred.physicsLocalPlane();
+                clientLog.logReconcile(
+                    latestReceivedSnap->tick, latestReceivedSnap->lastAckedInputTick[playerId],
+                    pred.historySize(),
+                    prePhys.x, prePhys.y,
+                    postPhys.x, postPhys.y,
+                    latestReceivedSnap->planes[playerId].x, latestReceivedSnap->planes[playerId].y);
+            }
+
+            // Build render snapshot: local plane from prediction, remote from interpolator.
+            if (!interp.empty()) {
+                GameSnapshot render = interp.interpolated(nowMs() - RENDER_DELAY_MS);
+                render.planes[playerId] = pred.localPlane();
+                latestSnap = render;
+            }
+
+            // Log render state every 60 frames.
+            if (latestSnap && (localTick % 60 == 0)) {
+                clientLog.logRender(localTick, playerId,
+                    latestSnap->planes[playerId],
+                    latestSnap->planes[1 - playerId]);
             }
 
             // ~60 Hz cap when online

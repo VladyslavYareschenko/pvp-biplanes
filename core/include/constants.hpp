@@ -4,7 +4,7 @@
 namespace constants
 {
     static constexpr uint32_t tickRate        {120};
-    static constexpr uint32_t snapshotRate    {30};
+    static constexpr uint32_t snapshotRate    {60};
     static constexpr uint8_t  defaultWinScore {10};
 
     static constexpr float baseWidth  {256.f};
