@@ -53,12 +53,16 @@ public:
         constexpr double HALF_LIFE_MS = 60.0;
         const float factor     = static_cast<float>(std::pow(0.5, dtMs / HALF_LIFE_MS));
         const float factorDir  = static_cast<float>(std::pow(0.5, dtMs / DIR_BLEND_HALF_LIFE_MS));
-        _visualOffsetX   *= factor;
-        _visualOffsetY   *= factor;
-        _visualOffsetDir *= factorDir;
-        if (std::fabs(_visualOffsetX)   < 1e-4f) _visualOffsetX   = 0.f;
-        if (std::fabs(_visualOffsetY)   < 1e-4f) _visualOffsetY   = 0.f;
-        if (std::fabs(_visualOffsetDir) < 1e-3f) _visualOffsetDir = 0.f;
+        _visualOffsetX      *= factor;
+        _visualOffsetY      *= factor;
+        _visualOffsetDir    *= factorDir;
+        _visualOffsetPilotX *= factor;
+        _visualOffsetPilotY *= factor;
+        if (std::fabs(_visualOffsetX)      < 1e-4f) _visualOffsetX      = 0.f;
+        if (std::fabs(_visualOffsetY)      < 1e-4f) _visualOffsetY      = 0.f;
+        if (std::fabs(_visualOffsetDir)    < 1e-3f) _visualOffsetDir    = 0.f;
+        if (std::fabs(_visualOffsetPilotX) < 1e-4f) _visualOffsetPilotX = 0.f;
+        if (std::fabs(_visualOffsetPilotY) < 1e-4f) _visualOffsetPilotY = 0.f;
     }
 
     // Advance the shadow world by one tick with the local player's input.
@@ -148,6 +152,39 @@ public:
             // Large direction snap (e.g. respawn) — clear direction offset.
             _visualOffsetDir = 0.f;
         }
+
+        // Pilot position blending: same approach, but only while pilot is
+        // active both before and after reconcile (skip on eject/death transitions).
+        if (prePhy.hasJumped && postPhy.hasJumped)
+        {
+            const float dpx  = prePhy.pilot.x - postPhy.pilot.x;
+            const float dpy  = prePhy.pilot.y - postPhy.pilot.y;
+            const float pdist = std::sqrt(dpx * dpx + dpy * dpy);
+            if (pdist > 1e-4f && pdist < MAX_BLEND_OFFSET)
+            {
+                _visualOffsetPilotX += dpx;
+                _visualOffsetPilotY += dpy;
+                const float ptotal = std::sqrt(_visualOffsetPilotX * _visualOffsetPilotX +
+                                               _visualOffsetPilotY * _visualOffsetPilotY);
+                if (ptotal > MAX_BLEND_OFFSET)
+                {
+                    const float s = MAX_BLEND_OFFSET / ptotal;
+                    _visualOffsetPilotX *= s;
+                    _visualOffsetPilotY *= s;
+                }
+            }
+            else if (pdist >= MAX_BLEND_OFFSET)
+            {
+                _visualOffsetPilotX = 0.f;
+                _visualOffsetPilotY = 0.f;
+            }
+        }
+        else
+        {
+            // Pilot state changed (just ejected or died) — clear pilot offset.
+            _visualOffsetPilotX = 0.f;
+            _visualOffsetPilotY = 0.f;
+        }
     }
 
     // The smoothly-predicted plane for the local player.
@@ -155,9 +192,11 @@ public:
     PlaneSnapshot localPlane() const
     {
         PlaneSnapshot ps = GameSnapshot::fromPlane(_world.planes[_playerId]);
-        ps.x   += _visualOffsetX;
-        ps.y   += _visualOffsetY;
-        ps.dir += _visualOffsetDir;
+        ps.x         += _visualOffsetX;
+        ps.y         += _visualOffsetY;
+        ps.dir       += _visualOffsetDir;
+        ps.pilot.x   += _visualOffsetPilotX;
+        ps.pilot.y   += _visualOffsetPilotY;
         return ps;
     }
 
@@ -175,9 +214,11 @@ public:
         _world    = GameWorld{};
         _world.startRound();
         _history.clear();
-        _visualOffsetX   = 0.f;
-        _visualOffsetY   = 0.f;
-        _visualOffsetDir = 0.f;
+        _visualOffsetX      = 0.f;
+        _visualOffsetY      = 0.f;
+        _visualOffsetDir    = 0.f;
+        _visualOffsetPilotX = 0.f;
+        _visualOffsetPilotY = 0.f;
     }
 
 private:
@@ -195,10 +236,12 @@ private:
     std::deque<HistoryEntry> _history{};
 
     // Visual blending: offset added to localPlane() output while it decays.
-    // Keeps the rendered plane from jumping when reconcile makes a correction.
-    float _visualOffsetX  {0.f};
-    float _visualOffsetY  {0.f};
-    float _visualOffsetDir{0.f};  // degrees, shortest-path direction correction
+    // Keeps the rendered plane/pilot from jumping when reconcile makes a correction.
+    float _visualOffsetX      {0.f};
+    float _visualOffsetY      {0.f};
+    float _visualOffsetDir    {0.f};  // degrees, shortest-path direction correction
+    float _visualOffsetPilotX {0.f};
+    float _visualOffsetPilotY {0.f};
 
     // Returns the signed shortest-path delta from angle a to angle b (degrees).
     static float shortestAngleDiff(float a, float b)
@@ -233,5 +276,7 @@ private:
             ps.speed * std::sin(rad), -ps.speed * std::cos(rad),
             ps.isDead, ps.isOnGround, ps.isTakingOff, ps.hasJumped,
             ps.hp, ps.deadCooldownRemaining, ps.protectionRemaining);
+        if (ps.hasJumped)
+            plane.setPilotPredictionState(ps.pilot.x, ps.pilot.y);
     }
 };

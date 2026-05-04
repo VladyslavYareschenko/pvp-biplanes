@@ -118,7 +118,11 @@ void Plane::setPredictionState(float x, float y, float dir, float speed,
 }
 
 
-// ---- Public input actions --------------------------------------------------
+void Plane::setPilotPredictionState(float x, float y)
+{
+    pilot.mX = x;
+    pilot.mY = y;
+}
 
 void Plane::Accelerate(float dt)
 {

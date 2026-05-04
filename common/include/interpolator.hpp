@@ -182,7 +182,13 @@ private:
                                        b.deadCooldownRemaining, t);
         r.protectionRemaining   = lerp(a.protectionRemaining,
                                        b.protectionRemaining,   t);
-        r.pilot = lerpPilot(a.pilot, b.pilot, t);
+        // Don't lerp pilot position across the eject transition — the older
+        // snapshot has the pilot at (0,0) while the newer has it at the bail
+        // point, so lerping would drag the pilot to the wrong place.
+        if (a.hasJumped == b.hasJumped)
+            r.pilot = lerpPilot(a.pilot, b.pilot, t);
+        else
+            r.pilot = b.pilot;  // snap to newer snapshot on eject transition
         return r;
     }
 
