@@ -42,16 +42,11 @@ Plane& Plane::operator=(const Plane& o)
     mHasJumped       = o.mHasJumped;
     mIsOnGround      = o.mIsOnGround;
     mIsTakingOff     = o.mIsTakingOff;
-    mSmokeFrame      = o.mSmokeFrame;
-    mFireFrame       = o.mFireFrame;
     mAngularVelocity = o.mAngularVelocity;
     mShootCooldown   = o.mShootCooldown;
     mPitchCooldown   = o.mPitchCooldown;
     mDeadCooldown    = o.mDeadCooldown;
     mProtection      = o.mProtection;
-    mSmokeAnim       = o.mSmokeAnim;
-    mSmokeCooldown   = o.mSmokeCooldown;
-    mFireAnim        = o.mFireAnim;
     pilot        = o.pilot;
     pilot.setPlane(this);  // fix the pointer
     return *this;
@@ -73,16 +68,11 @@ Plane& Plane::operator=(Plane&& o) noexcept
     mHasJumped       = o.mHasJumped;
     mIsOnGround      = o.mIsOnGround;
     mIsTakingOff     = o.mIsTakingOff;
-    mSmokeFrame      = o.mSmokeFrame;
-    mFireFrame       = o.mFireFrame;
     mAngularVelocity = o.mAngularVelocity;
     mShootCooldown   = std::move(o.mShootCooldown);
     mPitchCooldown   = std::move(o.mPitchCooldown);
     mDeadCooldown    = std::move(o.mDeadCooldown);
     mProtection      = std::move(o.mProtection);
-    mSmokeAnim       = std::move(o.mSmokeAnim);
-    mSmokeCooldown   = std::move(o.mSmokeCooldown);
-    mFireAnim        = std::move(o.mFireAnim);
     pilot        = std::move(o.pilot);
     pilot.setPlane(this);  // fix the pointer
     return *this;
@@ -399,67 +389,18 @@ void Plane::AnimationsUpdate(float dt)
 {
     if (mHasJumped)
         pilot.AnimationsUpdate(dt);
-
-    if (mIsDead) return;
-
-    SmokeUpdate(dt);
-    FireUpdate(dt);
 }
 
 void Plane::AnimationsReset()
 {
-    namespace p     = constants::plane;
-    namespace smoke = constants::smoke;
-    namespace fire  = constants::fire;
-
-    mSmokeFrame = 0;
-    mSmokeAnim.Stop();
-    mSmokeCooldown.Stop();
-    mFireAnim.Stop();
-    mFireFrame = 0;
+    namespace p = constants::plane;
 
     mShootCooldown.SetNewTimeout(static_cast<float>(p::shootCooldown));
     mPitchCooldown.SetNewTimeout(static_cast<float>(p::pitchCooldown));
     mDeadCooldown.SetNewTimeout(static_cast<float>(p::deadCooldown));
     mProtection.SetNewTimeout(static_cast<float>(p::spawnProtectionCooldown));
-    mSmokeAnim.SetNewTimeout(static_cast<float>(smoke::frameTime));
-    mSmokeCooldown.SetNewTimeout(static_cast<float>(smoke::cooldown));
-    mFireAnim.SetNewTimeout(static_cast<float>(fire::frameTime));
 
     pilot.AnimationsReset();
-}
-
-void Plane::SmokeUpdate(float dt)
-{
-    namespace smoke = constants::smoke;
-    if (mHp > 1) return;
-
-    mSmokeAnim.Update(dt);
-    mSmokeCooldown.Update(dt);
-
-    if (mSmokeCooldown.isReady()) {
-        mSmokeCooldown.Start();
-        mSmokeAnim.Stop();
-        mSmokeFrame = 0;
-    }
-
-    if (!mSmokeAnim.isReady()) return;
-
-    if (mSmokeFrame < smoke::frameCount) {
-        mSmokeAnim.Start();
-        ++mSmokeFrame;
-    }
-}
-
-void Plane::FireUpdate(float dt)
-{
-    if (mHp > 0) return;
-    mFireAnim.Update(dt);
-    if (mFireAnim.isReady()) {
-        mFireAnim.Start();
-        ++mFireFrame;
-        if (mFireFrame > 2) mFireFrame = 0;
-    }
 }
 
 void Plane::TakeOffStart()
@@ -507,12 +448,6 @@ void Plane::Hit(Plane& attacker)
 
     if (mHp > 0) {
         --mHp;
-        if (mHp == 1) {
-            mSmokeAnim.Start();
-            mSmokeCooldown.Start();
-        } else if (mHp == 0) {
-            mFireAnim.Start();
-        }
         return;
     }
 
@@ -675,20 +610,12 @@ void Plane::Pilot::Move(PlanePitch dir, float dt)
 
     mDir       = (dir == PlanePitch::Left) ? 90 : 270;
     mMoveSpeed = moveDir * p::runSpeed;
-
-    if (!mRunAnim.isReady()) return;
-
-    mRunAnim.Start();
-    ++mRunFrame;
-    if (mRunFrame > 2) mRunFrame = 0;
 }
 
 void Plane::Pilot::MoveIdle()
 {
     mMoveSpeed = 0.0f;
     if (mIsRunning) {
-        mRunAnim.Stop();
-        mRunFrame = 0;
         return;
     }
     if (mChuteState < ChuteState::Destroyed)
@@ -805,46 +732,18 @@ void Plane::Pilot::DeathUpdate(float dt)
 
 void Plane::Pilot::AnimationsUpdate(float dt)
 {
-    if (mIsDead)       { mAngelAnim.Update(dt); return; }
-    if (mIsRunning)    { mRunAnim.Update(dt);   return; }
-    if (mIsChuteOpen)  ChuteAnimUpdate(dt);
-    else               FallAnimUpdate(dt);
+    if (mIsDead) { mAngelAnim.Update(dt); return; }
 }
 
 void Plane::Pilot::AnimationsReset()
 {
     namespace p     = constants::pilot;
-    namespace chute = p::chute;
     namespace angel = p::angel;
 
-    mFallAnim.Stop();   mFallFrame  = 0;
-    mChuteAnim.Stop();  mChuteState = ChuteState::None;
-    mRunAnim.Stop();    mRunFrame   = 0;
+    mChuteState = ChuteState::None;
     mAngelAnim.Stop();  mAngelFrame = 0; mAngelLoop = 0;
 
-    mFallAnim.SetNewTimeout(static_cast<float>(p::fallFrameTime));
-    mChuteAnim.SetNewTimeout(static_cast<float>(chute::frameTime));
-    mRunAnim.SetNewTimeout(static_cast<float>(p::runFrameTime));
     mAngelAnim.SetNewTimeout(static_cast<float>(angel::frameTime));
-}
-
-void Plane::Pilot::FallAnimUpdate(float dt)
-{
-    mFallAnim.Update(dt);
-    if (mFallAnim.isReady()) {
-        mFallAnim.Start();
-        mFallFrame = !mFallFrame;
-    }
-}
-
-void Plane::Pilot::ChuteAnimUpdate(float dt)
-{
-    if (mChuteState >= ChuteState::Destroyed) return;
-    mChuteAnim.Update(dt);
-    if (mChuteAnim.isReady()) {
-        mChuteAnim.Start();
-        mFallFrame = !mFallFrame;
-    }
 }
 
 GameRect Plane::Pilot::Hitbox() const
@@ -888,7 +787,6 @@ void Plane::Pilot::ChuteHit(Plane& attacker)
     (void)attacker;
     mChuteState  = ChuteState::Destroyed;
     mIsChuteOpen = false;
-    mFallAnim.Stop();
 }
 
 void Plane::Pilot::Kill(Plane& attacker)

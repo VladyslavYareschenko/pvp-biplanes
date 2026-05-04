@@ -129,9 +129,6 @@ struct PilotSnapshot
     bool       isChuteBroken{};
     bool       isRunning  {};
     float      speedX{}, speedY{};
-    int8_t     fallFrame  {};
-    uint8_t    runFrame   {};
-    int8_t     angelFrame {};
     int16_t    dir        {};
     uint8_t    chuteState {};
 };
@@ -148,8 +145,6 @@ struct PlaneSnapshot
     bool    hasJumped  {};
     float   deadCooldownRemaining{};
     float   protectionRemaining  {};
-    uint8_t smokeFrame {};
-    int8_t  fireFrame  {};
     PilotSnapshot pilot{};
 };
 
@@ -184,9 +179,6 @@ struct GameSnapshot
         s.hasJumped   = p.hasJumped();
         s.deadCooldownRemaining = p.deadCooldownRemainder();
         s.protectionRemaining   = p.protectionRemainder();
-        s.smokeFrame = p.smokeFrame();
-        s.fireFrame  = p.fireFrame();
-
         const auto& pilot = p.pilot;
         s.pilot.x            = pilot.x();
         s.pilot.y            = pilot.y();
@@ -196,9 +188,6 @@ struct GameSnapshot
         s.pilot.isRunning    = pilot.isRunning();
         s.pilot.speedX       = pilot.speedVec().x;
         s.pilot.speedY       = pilot.speedVec().y;
-        s.pilot.fallFrame    = pilot.fallFrame();
-        s.pilot.runFrame     = pilot.runFrame();
-        s.pilot.angelFrame   = pilot.angelFrame();
         s.pilot.dir          = pilot.dir();
         s.pilot.chuteState   = static_cast<uint8_t>(pilot.chuteState());
         return s;
@@ -240,8 +229,6 @@ struct GameSnapshot
             pj["hasJumped"]   = p.hasJumped;
             pj["deadCR"]      = p.deadCooldownRemaining;
             pj["protR"]       = p.protectionRemaining;
-            pj["smokeFrame"]  = p.smokeFrame;
-            pj["fireFrame"]   = p.fireFrame;
             nlohmann::json pt;
             pt["x"]         = p.pilot.x;          pt["y"]         = p.pilot.y;
             pt["isDead"]    = p.pilot.isDead;
@@ -249,9 +236,6 @@ struct GameSnapshot
             pt["chuteBroken"]=p.pilot.isChuteBroken;
             pt["running"]   = p.pilot.isRunning;
             pt["sx"]        = p.pilot.speedX;      pt["sy"]        = p.pilot.speedY;
-            pt["fallFrame"] = p.pilot.fallFrame;
-            pt["runFrame"]  = p.pilot.runFrame;
-            pt["angelFrame"]= p.pilot.angelFrame;
             pt["dir"]       = p.pilot.dir;
             pt["chuteState"]= p.pilot.chuteState;
             pj["pilot"]     = pt;
@@ -292,8 +276,6 @@ struct GameSnapshot
             p.hasJumped   = pj.value("hasJumped",   false);
             p.deadCooldownRemaining = pj.value("deadCR", 0.f);
             p.protectionRemaining   = pj.value("protR",  0.f);
-            p.smokeFrame = pj.value("smokeFrame", uint8_t{0});
-            p.fireFrame  = pj.value("fireFrame",  int8_t{0});
             if (pj.contains("pilot")) {
                 const auto& pt = pj["pilot"];
                 p.pilot.x          = pt.value("x",          0.f);
@@ -304,9 +286,6 @@ struct GameSnapshot
                 p.pilot.isRunning  = pt.value("running",    false);
                 p.pilot.speedX     = pt.value("sx",         0.f);
                 p.pilot.speedY     = pt.value("sy",         0.f);
-                p.pilot.fallFrame  = pt.value("fallFrame",  int8_t{0});
-                p.pilot.runFrame   = pt.value("runFrame",   uint8_t{0});
-                p.pilot.angelFrame = pt.value("angelFrame", int8_t{0});
                 p.pilot.dir        = pt.value("dir",        int16_t{0});
                 p.pilot.chuteState = pt.value("chuteState", uint8_t{0});
             }
@@ -432,7 +411,6 @@ struct GameDeltaSnapshot
             pj["isTakingOff"] = p.isTakingOff; pj["hasJumped"] = p.hasJumped;
             pj["deadCR"] = p.deadCooldownRemaining;
             pj["protR"]  = p.protectionRemaining;
-            pj["smokeFrame"] = p.smokeFrame; pj["fireFrame"] = p.fireFrame;
             nlohmann::json pt;
             pt["x"] = p.pilot.x; pt["y"] = p.pilot.y;
             pt["isDead"] = p.pilot.isDead;
@@ -440,9 +418,6 @@ struct GameDeltaSnapshot
             pt["chuteBroken"] = p.pilot.isChuteBroken;
             pt["running"] = p.pilot.isRunning;
             pt["sx"] = p.pilot.speedX; pt["sy"] = p.pilot.speedY;
-            pt["fallFrame"] = p.pilot.fallFrame;
-            pt["runFrame"]  = p.pilot.runFrame;
-            pt["angelFrame"]= p.pilot.angelFrame;
             pt["dir"] = p.pilot.dir; pt["chuteState"] = p.pilot.chuteState;
             pj["pilot"] = pt;
             return pj;
@@ -493,8 +468,6 @@ struct GameDeltaSnapshot
             p.hasJumped   = pj.value("hasJumped",   false);
             p.deadCooldownRemaining = pj.value("deadCR", 0.f);
             p.protectionRemaining   = pj.value("protR",  0.f);
-            p.smokeFrame = pj.value("smokeFrame", uint8_t{0});
-            p.fireFrame  = pj.value("fireFrame",  int8_t{0});
             if (pj.contains("pilot")) {
                 const auto& pt = pj["pilot"];
                 p.pilot.x          = pt.value("x",          0.f);
@@ -505,9 +478,6 @@ struct GameDeltaSnapshot
                 p.pilot.isRunning  = pt.value("running",    false);
                 p.pilot.speedX     = pt.value("sx",         0.f);
                 p.pilot.speedY     = pt.value("sy",         0.f);
-                p.pilot.fallFrame  = pt.value("fallFrame",  int8_t{0});
-                p.pilot.runFrame   = pt.value("runFrame",   uint8_t{0});
-                p.pilot.angelFrame = pt.value("angelFrame", int8_t{0});
                 p.pilot.dir        = pt.value("dir",        int16_t{0});
                 p.pilot.chuteState = pt.value("chuteState", uint8_t{0});
             }

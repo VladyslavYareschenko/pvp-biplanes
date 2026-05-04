@@ -89,8 +89,6 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
         p.isTakingOff = ps.isTakingOff;
         p.hasJumped = ps.hasJumped;
         p.protectionRemaining = ps.protectionRemaining;
-        p.smokeFrame = ps.smokeFrame;
-        p.fireFrame = ps.fireFrame;
 
         p.pilotX = ps.pilot.x;
         p.pilotY = ps.pilot.y;
@@ -98,9 +96,6 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
         p.pilotChuteOpen = ps.pilot.isChuteOpen;
         p.pilotChuteBroken = ps.pilot.isChuteBroken;
         p.pilotIsRunning = ps.pilot.isRunning;
-        p.pilotFallFrame = ps.pilot.fallFrame;
-        p.pilotRunFrame = ps.pilot.runFrame;
-        p.pilotAngelFrame = ps.pilot.angelFrame;
         p.pilotDir = ps.pilot.dir;
         p.pilotIsMoving = std::abs(ps.pilot.speedX) > 0.0001f;
         [planes addObject:p];

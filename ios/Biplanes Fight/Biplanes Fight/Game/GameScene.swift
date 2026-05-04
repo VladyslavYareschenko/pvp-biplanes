@@ -360,7 +360,9 @@ final class PlaneRenderer: Renderable {
     private var isAnimating = [false, false]
 
     private var smokeTimer = [TimeInterval](repeating: 0, count: 2)
-    private var prevFireFrame = [Int](repeating: -1, count: 2)
+    private var fireTimer  = [TimeInterval](repeating: 0, count: 2)
+    // Fire trace spawned every N seconds — matches server's fire::frameTime × frameCount
+    private static let fireTraceInterval: TimeInterval = 0.075 * 3  // 0.225 s
     // Once protection expires, prevent any bounce-back blink caused by predictor
     // reconcile briefly restoring a non-zero protectionRemaining.
     // Resets only when protectionRemaining > 1.0 (well into a fresh spawn).
@@ -414,7 +416,7 @@ final class PlaneRenderer: Renderable {
             guard phase != .dead else {
                 nodes[i].isHidden = true
                 smokeTimer[i] = 0
-                prevFireFrame[i] = -1
+                fireTimer[i]  = 0
                 stopAnimation(i)
                 continue
             }
@@ -455,11 +457,9 @@ final class PlaneRenderer: Renderable {
                 }
 
                 if phase == .burning {
-                    let cur = Int(p.fireFrame)
-                    let fresh =
-                        prevFireFrame[i] < 0
-                        || (prevFireFrame[i] == 2 && cur == 0)
-                    if fresh {
+                    fireTimer[i] += dt
+                    if fireTimer[i] >= Self.fireTraceInterval {
+                        fireTimer[i] = 0
                         spawnTrace(
                             fireTextures,
                             at: pos,
@@ -468,11 +468,10 @@ final class PlaneRenderer: Renderable {
                             timePerFrame: 0.075
                         )
                     }
-                    prevFireFrame[i] = cur
                 }
             default:
                 smokeTimer[i] = 0
-                prevFireFrame[i] = -1
+                fireTimer[i]  = 0
             }
         }
     }
@@ -541,6 +540,18 @@ final class PilotRenderer: Renderable {
     private let runTextures: [[SKTexture]]
     private let idleTextures: [SKTexture]
     private let angelTextures: [SKTexture]
+
+    // Client-side animation timers — independent of server frame counters
+    private static let runFrameInterval:   TimeInterval = 0.10  // 10 fps, 5 frames
+    private static let fallFrameInterval:  TimeInterval = 0.14  // ~7 fps, 3 frames
+    private static let angelFrameInterval: TimeInterval = 0.12  // ~8 fps, 4 frames
+
+    private var runTimer   = [TimeInterval](repeating: 0, count: 2)
+    private var fallTimer  = [TimeInterval](repeating: 0, count: 2)
+    private var angelTimer = [TimeInterval](repeating: 0, count: 2)
+    private var runFrame   = [Int](repeating: 0, count: 2)
+    private var fallFrame  = [Int](repeating: 0, count: 2)
+    private var angelFrame = [Int](repeating: 0, count: 2)
 
     init(scene: SKScene) {
         self.scene = scene
@@ -614,15 +625,23 @@ final class PilotRenderer: Renderable {
             
             switch phase {
             case .angel:
-                let idx = Int(max(0, p.pilotAngelFrame)) % 4
-                pilotNodes[i].texture = angelTextures[idx]
+                angelTimer[i] += dt
+                while angelTimer[i] >= Self.angelFrameInterval {
+                    angelTimer[i] -= Self.angelFrameInterval
+                    angelFrame[i] = (angelFrame[i] + 1) % angelTextures.count
+                }
+                pilotNodes[i].texture = angelTextures[angelFrame[i]]
                 pilotNodes[i].size = CGSize(width: 20, height: 30)
                 pilotNodes[i].xScale = 1
                 pilotNodes[i].alpha = 0.5
 
             case .parachuting:
-                let idx = Int(max(0, p.pilotFallFrame)) % 3
-                pilotNodes[i].texture = fallTextures[i][idx]
+                fallTimer[i] += dt
+                while fallTimer[i] >= Self.fallFrameInterval {
+                    fallTimer[i] -= Self.fallFrameInterval
+                    fallFrame[i] = (fallFrame[i] + 1) % fallTextures[i].count
+                }
+                pilotNodes[i].texture = fallTextures[i][fallFrame[i]]
                 pilotNodes[i].size = CGSize(width: 15.6, height: 24.2)
                 pilotNodes[i].xScale = 1
                 // Chute hangs above pilot
@@ -635,20 +654,30 @@ final class PilotRenderer: Renderable {
                 chuteNodes[i].colorBlendFactor = p.pilotChuteBroken ? 0.5 : 0
 
             case .falling:
-                let idx = Int(max(0, p.pilotFallFrame)) % 3
-                pilotNodes[i].texture = fallTextures[i][idx]
+                fallTimer[i] += dt
+                while fallTimer[i] >= Self.fallFrameInterval {
+                    fallTimer[i] -= Self.fallFrameInterval
+                    fallFrame[i] = (fallFrame[i] + 1) % fallTextures[i].count
+                }
+                pilotNodes[i].texture = fallTextures[i][fallFrame[i]]
                 pilotNodes[i].size = CGSize(width: 15.6, height: 24.2)
                 pilotNodes[i].xScale = 1
 
             case .runningOrIdle:
                 if p.pilotIsRunning && p.pilotIsMoving {
-                    let idx = Int(p.pilotRunFrame) % 4
-                    pilotNodes[i].texture = runTextures[i][idx]
+                    runTimer[i] += dt
+                    while runTimer[i] >= Self.runFrameInterval {
+                        runTimer[i] -= Self.runFrameInterval
+                        runFrame[i] = (runFrame[i] + 1) % runTextures[i].count
+                    }
+                    pilotNodes[i].texture = runTextures[i][runFrame[i]]
                     pilotNodes[i].size = CGSize(width: 19.5, height: 24.2)
                     let right = Int(p.pilotDir) >= 180
                     facingRight[i] = right
                     pilotNodes[i].xScale = right ? 1 : -1
                 } else {
+                    runTimer[i] = 0
+                    runFrame[i] = 0
                     let tex = idleTextures[i]
                     let aspect = tex.size().width / tex.size().height
                     pilotNodes[i].texture = tex
@@ -660,6 +689,9 @@ final class PilotRenderer: Renderable {
                 }
 
             case .inPlane:
+                runTimer[i] = 0; runFrame[i] = 0
+                fallTimer[i] = 0; fallFrame[i] = 0
+                angelTimer[i] = 0; angelFrame[i] = 0
                 pilotNodes[i].isHidden = true
             }
         }

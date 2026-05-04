@@ -24,13 +24,6 @@ class Plane
     bool mIsTakingOff{};
     bool mHasJumped {};
 
-    // Animation state (sent to client for rendering)
-    uint8_t mSmokeFrame{};
-    Timer   mSmokeAnim    {0.0f};
-    Timer   mSmokeCooldown{0.0f};
-    int8_t  mFireFrame{};
-    Timer   mFireAnim{0.0f};
-
 
 public:
     explicit Plane(PlaneType type);
@@ -105,10 +98,6 @@ public:
     GameRect  Hitbox() const;
     bool  isHit(float bx, float by) const;
 
-    // Smoke/fire frame accessors for rendering
-    uint8_t smokeFrame() const { return mSmokeFrame; }
-    int8_t  fireFrame()  const { return mFireFrame;  }
-
     // ---- Client-side prediction setters (prediction/reconciliation only) ----
     // These bypass normal physics and should only be called during reconciliation.
     void setPredictionState(float x, float y, float dir, float speed,
@@ -141,18 +130,11 @@ public:
         float mGravity  {};
         Vec2  mSpeedVec {};
 
-        int8_t mFallFrame{};
-        Timer  mFallAnim {0.0f};
-
         ChuteState mChuteState{ChuteState::None};
-        Timer      mChuteAnim {0.0f};
 
-        uint8_t mRunFrame{};
-        Timer   mRunAnim {0.0f};
-
-        int8_t  mAngelFrame{};
-        int8_t  mAngelLoop {};
         Timer   mAngelAnim {0.0f};
+        int8_t  mAngelFrame{0};
+        int8_t  mAngelLoop {0};
 
         // Set by DeathUpdate when angel animation completes
         bool mNeedsRespawn{};
@@ -176,8 +158,6 @@ public:
         void DeathUpdate (float dt);
         void AnimationsUpdate(float dt);
         void AnimationsReset();
-        void FallAnimUpdate(float dt);
-        void ChuteAnimUpdate(float dt);
 
         GameRect Hitbox()      const;
         GameRect ChuteHitbox() const;
@@ -208,9 +188,6 @@ public:
         float y() const;
         Vec2  speedVec() const { return mSpeedVec; }
 
-        int8_t   fallFrame()  const { return mFallFrame;  }
-        uint8_t  runFrame()   const { return mRunFrame;   }
-        int8_t   angelFrame() const { return mAngelFrame; }
         int16_t  dir()        const { return mDir;        }
     };
 
@@ -225,8 +202,6 @@ private:
     void AbandonedUpdate(float dt);
     void AnimationsUpdate(float dt);
     void AnimationsReset();
-    void SmokeUpdate(float dt);
-    void FireUpdate(float dt);
 
     void TakeOffStart();
     void TakeOffFinish();
