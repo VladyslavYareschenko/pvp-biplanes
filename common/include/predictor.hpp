@@ -51,11 +51,14 @@ public:
     void blendStep(double dtMs)
     {
         constexpr double HALF_LIFE_MS = 60.0;
-        const float factor = static_cast<float>(std::pow(0.5, dtMs / HALF_LIFE_MS));
-        _visualOffsetX *= factor;
-        _visualOffsetY *= factor;
-        if (std::fabs(_visualOffsetX) < 1e-4f) _visualOffsetX = 0.f;
-        if (std::fabs(_visualOffsetY) < 1e-4f) _visualOffsetY = 0.f;
+        const float factor     = static_cast<float>(std::pow(0.5, dtMs / HALF_LIFE_MS));
+        const float factorDir  = static_cast<float>(std::pow(0.5, dtMs / DIR_BLEND_HALF_LIFE_MS));
+        _visualOffsetX   *= factor;
+        _visualOffsetY   *= factor;
+        _visualOffsetDir *= factorDir;
+        if (std::fabs(_visualOffsetX)   < 1e-4f) _visualOffsetX   = 0.f;
+        if (std::fabs(_visualOffsetY)   < 1e-4f) _visualOffsetY   = 0.f;
+        if (std::fabs(_visualOffsetDir) < 1e-3f) _visualOffsetDir = 0.f;
     }
 
     // Advance the shadow world by one tick with the local player's input.
@@ -130,6 +133,21 @@ public:
             _visualOffsetX = 0.f;
             _visualOffsetY = 0.f;
         }
+
+        // Direction blending: accumulate shortest-path angle correction.
+        const float dDir = shortestAngleDiff(postPhy.dir, prePhy.dir);
+        if (std::fabs(dDir) > 1e-3f && std::fabs(dDir) < MAX_BLEND_DIR)
+        {
+            _visualOffsetDir += dDir;
+            // Clamp accumulated direction offset.
+            if (std::fabs(_visualOffsetDir) > MAX_BLEND_DIR)
+                _visualOffsetDir = std::copysign(MAX_BLEND_DIR, _visualOffsetDir);
+        }
+        else if (std::fabs(dDir) >= MAX_BLEND_DIR)
+        {
+            // Large direction snap (e.g. respawn) — clear direction offset.
+            _visualOffsetDir = 0.f;
+        }
     }
 
     // The smoothly-predicted plane for the local player.
@@ -137,8 +155,9 @@ public:
     PlaneSnapshot localPlane() const
     {
         PlaneSnapshot ps = GameSnapshot::fromPlane(_world.planes[_playerId]);
-        ps.x += _visualOffsetX;
-        ps.y += _visualOffsetY;
+        ps.x   += _visualOffsetX;
+        ps.y   += _visualOffsetY;
+        ps.dir += _visualOffsetDir;
         return ps;
     }
 
@@ -156,13 +175,18 @@ public:
         _world    = GameWorld{};
         _world.startRound();
         _history.clear();
-        _visualOffsetX = 0.f;
-        _visualOffsetY = 0.f;
+        _visualOffsetX   = 0.f;
+        _visualOffsetY   = 0.f;
+        _visualOffsetDir = 0.f;
     }
 
 private:
-    // Corrections larger than this snap immediately; smaller ones blend smoothly.
-    static constexpr float MAX_BLEND_OFFSET = 0.1f;
+    // Position corrections larger than this snap immediately; smaller ones blend smoothly.
+    static constexpr float MAX_BLEND_OFFSET = 0.25f;
+    // Direction corrections (degrees) larger than this snap immediately.
+    static constexpr float MAX_BLEND_DIR    = 45.f;
+    // Direction blend half-life (ms) — longer than position so angle pops are invisible.
+    static constexpr double DIR_BLEND_HALF_LIFE_MS = 120.0;
 
     int       _playerId{0};
     GameWorld _world{};
@@ -172,8 +196,18 @@ private:
 
     // Visual blending: offset added to localPlane() output while it decays.
     // Keeps the rendered plane from jumping when reconcile makes a correction.
-    float _visualOffsetX{0.f};
-    float _visualOffsetY{0.f};
+    float _visualOffsetX  {0.f};
+    float _visualOffsetY  {0.f};
+    float _visualOffsetDir{0.f};  // degrees, shortest-path direction correction
+
+    // Returns the signed shortest-path delta from angle a to angle b (degrees).
+    static float shortestAngleDiff(float a, float b)
+    {
+        float d = b - a;
+        while (d >  180.f) d -= 360.f;
+        while (d < -180.f) d += 360.f;
+        return d;
+    }
 
     // Restore world state from an authoritative snapshot.
     void restoreFromSnapshot(const GameSnapshot& snap)
