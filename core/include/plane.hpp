@@ -117,9 +117,9 @@ public:
                             bool isTakingOff, bool hasJumped,
                             uint8_t hp, float deadCooldownRemaining,
                             float protectionRemaining);
-    // Sets pilot position during prediction reconciliation (pilot coords are
-    // not part of the main setPredictionState to keep the signature compact).
-    void setPilotPredictionState(float x, float y);
+    // Sets pilot position and velocity during prediction reconciliation.
+    // speedX/Y are the per-tick position deltas from the snapshot (mSpeedVec).
+    void setPilotPredictionState(float x, float y, float speedX, float speedY);
 
 
     // ---- Pilot inner class ----

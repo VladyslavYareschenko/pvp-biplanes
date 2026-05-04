@@ -118,10 +118,17 @@ void Plane::setPredictionState(float x, float y, float dir, float speed,
 }
 
 
-void Plane::setPilotPredictionState(float x, float y)
+void Plane::setPilotPredictionState(float x, float y, float speedX, float speedY)
 {
+    namespace p = constants::pilot;
     pilot.mX = x;
     pilot.mY = y;
+    // speedX/Y from the snapshot are mSpeedVec — position delta per 120-Hz tick.
+    // Convert to mSpeed (wu/s) used by FallUpdate physics.
+    constexpr float TICKS_PER_SEC = 120.f;
+    pilot.mSpeed   = {speedX * TICKS_PER_SEC, speedY * TICKS_PER_SEC};
+    // Restore gravity so the downward acceleration integrates correctly during replay.
+    pilot.mGravity = p::gravity;
 }
 
 void Plane::Accelerate(float dt)

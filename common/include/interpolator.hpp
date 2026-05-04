@@ -1,6 +1,7 @@
 #pragma once
 
 #include <common/include/protocol.hpp>
+#include <core/include/constants.hpp>
 
 #include <array>
 #include <cmath>
@@ -41,8 +42,11 @@ public:
         const double virtualMs = snap.tick * (1000.0 / SERVER_TICK_RATE_HZ);
 
         // Track clock offset: wall-clock − virtual (≈ network one-way delay).
-        // Use a fast EMA so the first sample initialises instantly.
+        // Use a diminishing-alpha EMA: starts at α=1.0 for the first sample so
+        // the offset is initialised instantly; converges to α=0.05 by sample 20.
+        // This is faster than a fixed α=0.05 which needs ~20 samples to converge.
         const double sample = recvTimeMs - virtualMs;
+        ++_clockSamples;
         if (!_clockInitialised)
         {
             _clockOffset      = sample;
@@ -50,7 +54,8 @@ public:
         }
         else
         {
-            _clockOffset = 0.95 * _clockOffset + 0.05 * sample;
+            const double alpha = std::max(0.05, 1.0 / static_cast<double>(_clockSamples));
+            _clockOffset = (1.0 - alpha) * _clockOffset + alpha * sample;
         }
 
         Entry& e    = _buf[_head];
@@ -91,8 +96,15 @@ public:
         // Render time is older than all buffered samples — clamp to newest.
         if (!older) return entry(0).snap;
 
-        // Render time is newer than all samples — clamp to newest.
-        if (!newer) return entry(0).snap;
+        // Render time is ahead of all buffered samples — dead-reckoning fallback.
+        // Extrapolate from the newest sample for up to 200 ms before giving up.
+        if (!newer)
+        {
+            const double overMs = renderTimeMs - entry(0).timeMs;
+            if (overMs <= 200.0)
+                return extrapolate(entry(0).snap, overMs / 1000.0);
+            return entry(0).snap;
+        }
 
         const double span = newer->timeMs - older->timeMs;
         const float  t    = (span > 0.001)
@@ -122,6 +134,7 @@ private:
     std::array<Entry, BUFFER_SIZE> _buf{};
     int    _head             {0};
     int    _count            {0};
+    int    _clockSamples     {0};          // for EMA warm-up
     double _clockOffset      {0.0};  // wall-clock − virtual-time (≈ one-way delay)
     bool   _clockInitialised {false};
 
@@ -199,9 +212,58 @@ private:
         GameSnapshot r  = a;  // copy round/meta state from older sample
         r.planes[0]     = lerpPlane(a.planes[0], b.planes[0], t);
         r.planes[1]     = lerpPlane(a.planes[1], b.planes[1], t);
-        // Bullets: use the newer snapshot directly (they move fast and
-        // spawning/despawning makes lerp unreliable).
-        r.bullets       = b.bullets;
+        // Bullets: back-calculate positions from the newer snapshot to render time.
+        // bullet::speed is in wu/s; (1-t) × span is the time offset in seconds.
+        r.bullets = b.bullets;
+        if (t < 1.f && !r.bullets.empty())
+        {
+            // Time from render point to the newer snapshot (in seconds).
+            // We step the bullet *backwards* by this amount.
+            const double span_s = (b.tick - a.tick) * (1.0 / SERVER_TICK_RATE_HZ);
+            const float  dtBack = static_cast<float>((1.f - t) * span_s);
+            constexpr float RAD = static_cast<float>(M_PI) / 180.f;
+            for (auto& bul : r.bullets)
+            {
+                const float rad = bul.dir * RAD;
+                // Movement matches bullet.cpp: x += speed*sin(dir)*dt, y -= speed*cos(dir)*dt
+                bul.x -= constants::bullet::speed * std::sin(rad) * dtBack;
+                bul.y += constants::bullet::speed * std::cos(rad) * dtBack;
+            }
+        }
+        return r;
+    }
+
+    // Extrapolate a snapshot forward by dtSec seconds using stored velocities.
+    // Used as a dead-reckoning fallback when render time overshoots the buffer.
+    static GameSnapshot extrapolate(const GameSnapshot& s, double dtSec)
+    {
+        GameSnapshot r = s;
+        const float dt = static_cast<float>(dtSec);
+        constexpr float RAD = static_cast<float>(M_PI) / 180.f;
+
+        for (int i = 0; i < 2; ++i)
+        {
+            PlaneSnapshot& p = r.planes[i];
+            if (!p.isDead)
+            {
+                const float rad = p.dir * RAD;
+                p.x += p.speed * std::sin(rad) * dt;
+                p.y -= p.speed * std::cos(rad) * dt;
+            }
+            if (p.hasJumped && !p.pilot.isDead)
+            {
+                // pilot.speedX/Y are per-tick position deltas at SERVER_TICK_RATE_HZ Hz;
+                // multiply by tick rate to convert to wu/s.
+                p.pilot.x += p.pilot.speedX * static_cast<float>(SERVER_TICK_RATE_HZ) * dt;
+                p.pilot.y += p.pilot.speedY * static_cast<float>(SERVER_TICK_RATE_HZ) * dt;
+            }
+        }
+        for (auto& bul : r.bullets)
+        {
+            const float rad = bul.dir * RAD;
+            bul.x += constants::bullet::speed * std::sin(rad) * dt;
+            bul.y -= constants::bullet::speed * std::cos(rad) * dt;
+        }
         return r;
     }
 };

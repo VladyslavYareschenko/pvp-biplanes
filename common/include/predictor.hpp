@@ -277,6 +277,7 @@ private:
             ps.isDead, ps.isOnGround, ps.isTakingOff, ps.hasJumped,
             ps.hp, ps.deadCooldownRemaining, ps.protectionRemaining);
         if (ps.hasJumped)
-            plane.setPilotPredictionState(ps.pilot.x, ps.pilot.y);
+            plane.setPilotPredictionState(ps.pilot.x, ps.pilot.y,
+                                          ps.pilot.speedX, ps.pilot.speedY);
     }
 };

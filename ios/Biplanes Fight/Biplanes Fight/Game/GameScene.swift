@@ -361,6 +361,10 @@ final class PlaneRenderer: Renderable {
 
     private var smokeTimer = [TimeInterval](repeating: 0, count: 2)
     private var prevFireFrame = [Int](repeating: -1, count: 2)
+    // Once protection expires, prevent any bounce-back blink caused by predictor
+    // reconcile briefly restoring a non-zero protectionRemaining.
+    // Resets only when protectionRemaining > 1.0 (well into a fresh spawn).
+    private var protectionExpired = [false, false]
 
     init(scene: SKScene, planeColors: [SKColor]) {
         self.scene = scene
@@ -424,8 +428,12 @@ final class PlaneRenderer: Renderable {
             nodes[i].position = pos
             nodes[i].zRotation =
                 .pi / 2 - CGFloat(p.dir) * .pi / 180 + baseAngles[i]
+            // Hard-reset flag prevents blink caused by predictor reconcile
+            // briefly bouncing protectionRemaining back above zero.
+            if p.protectionRemaining > 1.0 { protectionExpired[i] = false }
+            else if p.protectionRemaining == 0 { protectionExpired[i] = true }
             nodes[i].alpha =
-                p.protectionRemaining > 0
+                (!protectionExpired[i] && p.protectionRemaining > 0)
                 ? CGFloat(0.5 + 0.5 * sin(Double(p.protectionRemaining) * 10))
                 : 1
 
