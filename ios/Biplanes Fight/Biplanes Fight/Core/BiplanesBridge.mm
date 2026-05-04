@@ -160,6 +160,7 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
     double                      _renderDelayMs; // 3 × snapshot interval
     std::atomic<uint64_t>       _predTick;   // local prediction tick counter (reset per session; atomic for network-thread read)
     uint64_t                    _lastReconciledSnapTick; // most recent snap tick reconciled on the main thread
+    std::atomic<uint64_t>       _lastSentTick;        // highest predTick covered by a sent InputMessage
 
     // Wall-clock origin for interpolator timestamps
     std::chrono::steady_clock::time_point _interpOrigin;
@@ -199,6 +200,7 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
         _latestState = [BiplanesBridgeState new];
         _accumMs = 0.0;
         _predTick = 0;
+        _lastSentTick = 0;
         _lastReconciledSnapTick = 0;
         _renderFrameN = 0;
         _networkRunning = false;
@@ -384,6 +386,7 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
           self->_predictor = ClientPredictor{assignedId};
           self->_interpOrigin = std::chrono::steady_clock::now();
           self->_predTick  = 0;
+          self->_lastSentTick = 0;
           self->_lastReconciledSnapTick = 0;
       }
       self->_renderFrameN = 0;
@@ -422,44 +425,59 @@ static BiplanesBridgeState* buildState(const GameSnapshot& gs)
     using Clk = std::chrono::steady_clock;
     using FpMs = std::chrono::duration<double, std::milli>;
     auto lastSend = Clk::now();
-    const auto SEND_INTERVAL = std::chrono::milliseconds(16);  // ~60Hz
+    const auto SEND_INTERVAL = std::chrono::milliseconds(16);  // ~60Hz send cadence
 
     while (_networkRunning.load())
     {
-        // Send input at ~60Hz
+        // Send inputs at ~60Hz.  At 120Hz display the predictor advances 2 ticks
+        // between sends; we cover both ticks by sending one InputMessage per
+        // uncovered predTick so the server acks the highest tick and the predictor
+        // history is pruned correctly (max 3 messages per interval as a safety cap).
         auto now = Clk::now();
         if (now - lastSend >= SEND_INTERVAL)
         {
+            const uint64_t curTick  = _predTick.load();
+            const uint64_t prevSent = _lastSentTick.load();
+
+            // Build the input payload once — same state for all ticks in this burst.
             InputMessage msg;
-            msg.tick = _predTick.load();  // use prediction tick so server acks match history
             msg.throttle = static_cast<PlaneThrottle>(_throttle.load());
-            msg.pitch = static_cast<PlanePitch>(_pitch.load());
-            msg.shoot = _shoot.load();
-            msg.jump = _jump.load();
+            msg.pitch    = static_cast<PlanePitch>(_pitch.load());
+            msg.shoot    = _shoot.load();
+            msg.jump     = _jump.load();
             msg.jsActive = _jsActive.load();
-            msg.jsAngle = _jsAngle.load();
-            msg.jsMag = _jsMag.load();
+            msg.jsAngle  = _jsAngle.load();
+            msg.jsMag    = _jsMag.load();
 
-            if (!sendAll(_serverFd, frameMessage(msg.toJson())))
+            // Cap the burst at 3 to avoid flooding on stalls.
+            const uint64_t startTick = (curTick > prevSent + 3)
+                                       ? curTick - 2
+                                       : prevSent + 1;
+
+            for (uint64_t t = startTick; t <= curTick; ++t)
             {
-                _networkRunning = false;
-                break;
+                msg.tick = t;
+                if (!sendAll(_serverFd, frameMessage(msg.toJson())))
+                {
+                    _networkRunning = false;
+                    break;
+                }
+                if (_logger)
+                {
+                    PlayerInput pi{};
+                    pi.throttle           = msg.throttle;
+                    pi.pitch              = msg.pitch;
+                    pi.shoot              = msg.shoot;
+                    pi.jump               = msg.jump;
+                    pi.joystick.active    = msg.jsActive;
+                    pi.joystick.angle     = msg.jsAngle;
+                    pi.joystick.magnitude = msg.jsMag;
+                    _logger->logInput(t, pi);
+                }
             }
+            if (!_networkRunning.load()) break;
 
-            // Log the sent input.
-            if (_logger)
-            {
-                PlayerInput pi{};
-                pi.throttle           = msg.throttle;
-                pi.pitch              = msg.pitch;
-                pi.shoot              = msg.shoot;
-                pi.jump               = msg.jump;
-                pi.joystick.active    = msg.jsActive;
-                pi.joystick.angle     = msg.jsAngle;
-                pi.joystick.magnitude = msg.jsMag;
-                _logger->logInput(msg.tick, pi);
-            }
-
+            _lastSentTick.store(curTick);
             lastSend = now;
         }
 
